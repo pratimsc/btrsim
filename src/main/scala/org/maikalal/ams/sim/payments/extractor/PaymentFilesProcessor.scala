@@ -27,7 +27,7 @@ object PaymentFilesProcessor extends Logging {
     paymentOrders
   }
 
-  private def extractPaymentOrderFromFile(file: File)(implicit paymentFileCodec: Codec): Try[List[PaymentOrder]] = Try {
+  def extractPaymentOrderFromFile(file: File)(implicit paymentFileCodec: Codec): Try[List[PaymentOrder]] = Try {
     val src = Source.fromFile(file)
     val data = src.getLines.toList
     src.close
@@ -43,7 +43,7 @@ object PaymentFilesProcessor extends Logging {
       Nil
   }
 
-  private def extractFilesFromFolder(file: File): List[File] = {
+  def extractFilesFromFolder(file: File): List[File] = {
     def recur(file: File, tree: List[File]): List[File] = if (file.isFile()) List(file) ::: tree
     else {
       val subFiles = file.listFiles().filter(_.isFile()).toList ::: tree
@@ -55,7 +55,7 @@ object PaymentFilesProcessor extends Logging {
   }
 
   private def isEdifactPaymulPaymentData(data: List[String]): Boolean = data match {
-    case head :: tail if (head.contains("PAYMUL")) => true
+    case head :: tail => head.contains("PAYMUL")
     case _ => false
   }
 
