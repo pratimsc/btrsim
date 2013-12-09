@@ -1,7 +1,6 @@
 package org.maikalal.ams.sim.feeds
 
 import java.io.File
-
 import scala.collection.immutable.HashMap
 import scala.collection.mutable.StringBuilder
 import scala.io.Codec
@@ -10,7 +9,6 @@ import scala.math.BigDecimal.int2bigDecimal
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
-
 import org.joda.time.DateTime
 import org.maikalal.ams.sim.balances.AccountBalance
 import org.maikalal.ams.sim.balances.AccountLedger
@@ -21,12 +19,11 @@ import org.maikalal.ams.sim.payments.Money
 import org.maikalal.ams.sim.payments.PaymentProcessor
 import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
 import org.maikalal.ams.sim.utils.TransformationUtil
-
 import com.barclays.corp.ams.log.Logging
 import com.typesafe.config.ConfigFactory
-
 import net.liftweb.json.DefaultFormats
 import net.liftweb.json.Serialization.writePretty
+import scala.util.Success
 
 object BTRCreator extends Logging {
 
@@ -45,11 +42,13 @@ object BTRCreator extends Logging {
     info("_______________________________________________________________________")
 
     val DD_PREVIOUS_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.in.folder.previous")
+
     val DD_PRESENT_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.out.folder.present")
+
     val DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL = conf.getString("ams.payment.in.folder.internal")
     val DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL = conf.getString("ams.payment.in.folder.external")
-    val DD_PRESENT_ACC_DATE = conf.getString("ams.default.date.accounting")
-    val DD_PRESENT_ACC_DATE_FORMAT = conf.getString("ams.default.date.accounting.format")
+    val DD_PRESENT_ACC_DATE = conf.getString("ams.default.accounting.date.time")
+    val DD_PRESENT_ACC_DATE_FORMAT = conf.getString("ams.default.accounting.date.format")
 
     //Pick up each of GBP direct data file and create a MAP of balance information
     val ddInputFolder = new File(DD_PREVIOUS_ACC_DATE_FEED_FOLDER)
@@ -95,6 +94,7 @@ object BTRCreator extends Logging {
 
     val accountLedgersFromPaymentFiles = BalanceProcessor.generateAccountBalancePerDate(paymentTransactionsToConsider)
     val accountLedgersFromPaymentFilesMap = accountLedgersFromPaymentFiles.groupBy(_.account)
+    
     info("Following Account Ledger will be used for creating the Direct Data feeds.")
     info("_______________________________________________________________________")
     accountLedgersFromPaymentFiles.foreach(a => info("Account Ledger :\t" + writePretty(a)))
@@ -107,23 +107,20 @@ object BTRCreator extends Logging {
         case Success(refAccL) =>
           //Merge all Account Ledgers generated from Payment files into this Account Ledgers with Previous day's balance information
           //The resulted Account Ledger set will be written to file.
-          refAccL.map(r => encrichAccountLedgerWithBalanceInformations(r, targetBatchDate, accountLedgersFromPaymentFilesMap.get(r.account).getOrElse(Nil)))
+          refAccL.map { r =>
+            encrichAccountLedgerWithBalanceInformations(r, targetBatchDate, accountLedgersFromPaymentFilesMap.get(r.account).getOrElse(Nil))
+          }
         case Failure(ex) =>
           error(ex.toString())
           Nil
       }
 
+
       val directDataAccStmnts = generateSterlingDDRecordsForFormat100(finalAccLedgrs)
+      
       debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
       debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-      directDataAccStmnts.foreach(data => {
-        debug("--------->New Account Information for GBP Account -> \t" + data._1)
-        val ddRecords = data._2
-        ddRecords.foreach(r => debug("Trans Record:\t" + r))
-      })
-      debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-      debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-      val outputFileName = DD_PRESENT_ACC_DATE_FEED_FOLDER + gbpFile.getName() + "_" + System.currentTimeMillis()
+      val outputFileName = generateOuputFileName(DD_PRESENT_ACC_DATE_FEED_FOLDER, gbpFile.getName())
       info("Creating the direct data feed for input file : '" + gbpFile.getCanonicalPath() + "' to output file : '" + outputFileName + "'")
       val prevFileHeader = getFileHeader(gbpFile)(directDataFeedCodec)
       val batchDateFileHeader = generateFileHeaderForFormat100(prevFileHeader, targetBatchDate)
@@ -157,14 +154,7 @@ object BTRCreator extends Logging {
       val directDataAccStmnts = generateSterlingDDRecordsForFormat100(finalAccLedgrs)
       debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
       debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-      directDataAccStmnts.foreach(data => {
-        debug("--------->New Account Information for GBP Account -> \t" + data._1)
-        val ddRecords = data._2
-        ddRecords.foreach(r => debug("Trans Record:\t" + r))
-      })
-      debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-      debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-      val outputFileName = DD_PRESENT_ACC_DATE_FEED_FOLDER + ccyFile.getName() + "_" + System.currentTimeMillis()
+      val outputFileName = generateOuputFileName(DD_PRESENT_ACC_DATE_FEED_FOLDER, ccyFile.getName())
       info("Creating the direct data feed for input file : '" + ccyFile.getCanonicalPath() + "' to output file : '" + outputFileName + "'")
       val prevFileHeader = getFileHeader(ccyFile)(directDataFeedCodec)
       val batchDateFileHeader = generateFileHeaderForFormat100(prevFileHeader, targetBatchDate)
@@ -188,6 +178,12 @@ object BTRCreator extends Logging {
     info("++++++++++++++++++++++++++++++++++++++++++++")
 
   }
+
+  /**
+   * Get output file name
+   */
+  def generateOuputFileName(outputFolder: String, refFileName: String): String =
+    outputFolder + File.separatorChar + refFileName + '_' + TransformationUtil.getDateInFormat(DateTime.now(), TransformationUtil.DT_FORMAT_CCYYMMDDHHmmssSSS).get
 
   /**
    * Create a Map, where all the transaction associated with an Account can be fetched using Account number.
@@ -218,8 +214,10 @@ object BTRCreator extends Logging {
    */
   def isFileASterlingFeed(file: File)(implicit directDataFeedCodec: Codec): Boolean = {
     val h = getFileHeader(file)
-    if (h.length() == 100 && h.substring(0, 4) == "FLH1" && h.substring(10, 11).charAt(0) == 'T') true
-    else false
+    if (h.length() == 100 && h.substring(0, 4) == "FLH1" && h.substring(10, 11).charAt(0) == 'T') 
+      true
+    else 
+      false
   }
 
   /**
@@ -227,8 +225,10 @@ object BTRCreator extends Logging {
    */
   def isFileACurrencyFeed(file: File)(implicit directDataFeedCodec: Codec): Boolean = {
     val h = getFileHeader(file)
-    if (h.length() == 300 && h.substring(0, 4) == "FLH1" && h.substring(10, 11).charAt(0) == 'F') true
-    else true
+    if (h.length() == 300 && h.substring(0, 4) == "FLH1" && h.substring(10, 11).charAt(0) == 'F') 
+      true
+    else 
+      false
   }
 
   /**
@@ -253,12 +253,20 @@ object BTRCreator extends Logging {
    */
 
   def encrichAccountLedgerWithBalanceInformations(referenceAccountLedger: AccountLedger, targetLedgerDate: DateTime, paymentAccountLedger: List[AccountLedger]): AccountLedger = {
-    val transactions = paymentAccountLedger.flatMap(r => r.transactions.filter(_.transacionDate.getMillis() <= targetLedgerDate.getMillis()))
+    val transactions = paymentAccountLedger.flatMap { r =>
+      r.transactions.filter {
+        _.transacionDate.getMillis() <= targetLedgerDate.getMillis()
+      }
+    }
+
     val balPrevEod = referenceAccountLedger.balances.get(AccountBalance.BALANCE_TYPE_EOD).get
     val currencyCode = balPrevEod.balance.currencyCode
-    val dailyBalance = if (transactions.isEmpty) Money(0, currencyCode) else transactions.foldLeft(Money(0, currencyCode))((acc, r) => acc + r.transactionValue)
+
+    val dailyBalance = transactions.foldLeft(Money(0, currencyCode))((acc, r) => acc + r.transactionValue)
+
     val balDaily = new AccountBalance(AccountBalance.BALANCE_TYPE_DAILY, dailyBalance)
     val balEod = new AccountBalance(AccountBalance.BALANCE_TYPE_EOD, balPrevEod.balance + balDaily.balance)
+
     val balances = HashMap(AccountBalance.BALANCE_TYPE_EOD -> balEod, AccountBalance.BALANCE_TYPE_PREV_EOD -> balPrevEod, AccountBalance.BALANCE_TYPE_DAILY -> balDaily)
     new AccountLedger(account = referenceAccountLedger.account, transactions = transactions, balances = balances, ledgerDate = targetLedgerDate)
   }
@@ -267,14 +275,17 @@ object BTRCreator extends Logging {
    *
    */
   def generateFileHeaderForFormat100(prevFileHeader: String, targetBatchDate: DateTime) = {
+    debug("generateFileHeaderForFormat100:" + "prevFileHeader->" + prevFileHeader)
+    debug("generateFileHeaderForFormat100:" + "targetBatchDate->" + targetBatchDate)
     val h = new StringBuilder(prevFileHeader.substring(0, 36))
     val creationDate = DateTime.now()
     h.append(TransformationUtil.getDateInFormat(creationDate, TransformationUtil.DT_FORMAT_YYDDD).get)
     h.append(TransformationUtil.getDateInFormat(creationDate.plusDays(10), TransformationUtil.DT_FORMAT_YYDDD).get)
-    val customerIdentifier = h.substring(46, 51)
+    val customerIdentifier = prevFileHeader.substring(46, 51)
     h.append(customerIdentifier)
     h.append(TransformationUtil.getDateInFormat(targetBatchDate, TransformationUtil.DT_FORMAT_DDMMYY).get)
     h.append(TransformationUtil.fillWithCharacter(43, ' '))
+    debug("generateFileHeaderForFormat100:" + "targetHeader->" + h)
     h.toString
   }
 
@@ -295,8 +306,8 @@ object BTRCreator extends Logging {
     val countOfCreditEntries = allCreditItems.size
 
     t.append("%06d".format(blockCount))
-    t.append("%013d".format(totalValueOfDebitItems))
-    t.append("%013d".format(totalValueOfCreditItems))
+    t.append("%013.0f".format(totalValueOfDebitItems))
+    t.append("%013.0f".format(totalValueOfCreditItems))
     t.append("%07d".format(countOfDebitEntries))
     t.append("%07d".format(countOfCreditEntries))
     t.append("%08d".format(dataRecordCount))
@@ -335,7 +346,7 @@ object BTRCreator extends Logging {
     strBldr.append(chequeNumber)
     strBldr.append(TransformationUtil.getDateInFormat(transaction.transacionDate, TransformationUtil.DT_FORMAT_DDMMYY).get)
     strBldr.append(TransformationUtil.fillWithCharacter(4, ' '))
-    
+
     strBldr.toString()
   }
 
@@ -368,11 +379,11 @@ object BTRCreator extends Logging {
    *
    */
 
-  private def calculateTheTargetAccountingDate(transactions: List[AccountTransaction]): DateTime =
+  def calculateTheTargetAccountingDate(transactions: List[AccountTransaction]): DateTime =
     transactions.foldLeft(TransformationUtil.DEFAULT_START_DATE) { (maxDate, tr) =>
-      if (tr.transacionDate.getMillis() > maxDate.getMillis()) 
-        tr.transacionDate 
-      else 
+      if (tr.transacionDate.getMillis() > maxDate.getMillis())
+        tr.transacionDate
+      else
         maxDate
     }
 }
