@@ -263,8 +263,8 @@ object BTRCreator extends Logging {
     val currencyCode = balPrevEod.balance.currencyCode
 
     val dailyBalance = transactions.foldLeft(Money(0, currencyCode))((acc, r) => acc + r.transactionValue)
-
     val balDaily = new AccountBalance(AccountBalance.BALANCE_TYPE_DAILY, dailyBalance)
+    
     val balEod = new AccountBalance(AccountBalance.BALANCE_TYPE_EOD, balPrevEod.balance + balDaily.balance)
 
     val balances = HashMap(AccountBalance.BALANCE_TYPE_EOD -> balEod, AccountBalance.BALANCE_TYPE_PREV_EOD -> balPrevEod, AccountBalance.BALANCE_TYPE_DAILY -> balDaily)
