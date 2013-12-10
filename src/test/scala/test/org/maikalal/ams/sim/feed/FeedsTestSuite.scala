@@ -21,6 +21,11 @@ import scala.io.Codec
 import scala.io.Source
 import net.liftweb.json.Serialization._
 import net.liftweb.json.DefaultFormats
+import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
+import org.maikalal.ams.sim.payments.PaymentProcessor
+import org.maikalal.ams.sim.balances.BalanceProcessor
+import scala.util.Success
+import scala.util.Failure
 
 @RunWith(classOf[JUnitRunner])
 class FeedsTestSuite extends FunSuite {
@@ -30,11 +35,9 @@ class FeedsTestSuite extends FunSuite {
       new TransformationUtil.MyJodaCurrencyUnitSerializer)
 
   test("Test1 - Read configuration file") {
-    val confFile = """test/conf/test01a.conf"""
+    val confFile = """test/conf/test01.conf"""
+    //val confFile = """C:\data\code\eclipse\20130412\AMSSimulator\src\main\resources\test\conf\test02.conf"""
     val conf = ConfigFactory.load(confFile)
-
-    info("Following properties will be used for processing")
-    info("_______________________________________________________________________")
 
     val DD_PREVIOUS_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.in.folder.previous")
     val DD_PRESENT_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.out.folder.present")
@@ -42,14 +45,16 @@ class FeedsTestSuite extends FunSuite {
     val DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL = conf.getString("ams.payment.in.folder.external")
     val DD_PRESENT_ACC_DATE = conf.getString("ams.default.accounting.date.time")
     val DD_PRESENT_ACC_DATE_FORMAT = conf.getString("ams.default.accounting.date.format")
+    val DD_AMS_CUSTOMER_IDENTIFIER = conf.getString("ams.default.direct.data.customerIdentifier")
 
     //Pick up each of GBP direct data file and create a MAP of balance information
-    assert(DD_PREVIOUS_ACC_DATE_FEED_FOLDER == """B:/Official/tmp/btr_prev""")
-    assert(DD_PRESENT_ACC_DATE_FEED_FOLDER == """B:/Official/tmp/btr_pres""")
-    assert(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL == """B:/Official/tmp/pay_in_int""")
-    assert(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL == """B:/Official/tmp/pay_in_ext""")
+    assert(DD_PREVIOUS_ACC_DATE_FEED_FOLDER == "B:\\Official\\tmp\\btr_prev")
+    assert(DD_PRESENT_ACC_DATE_FEED_FOLDER == "B:\\Official\\tmp\\btr_pres")
+    assert(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL == "B:\\Official\\tmp\\pay_in_int")
+    assert(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL == "B:\\Official\\tmp\\pay_in_ext")
     assert(DD_PRESENT_ACC_DATE == "20131206")
     assert(DD_PRESENT_ACC_DATE_FORMAT == "yyyyMMdd")
+    assert(DD_AMS_CUSTOMER_IDENTIFIER == "63097")
   }
 
   test("Test2 - Check formating done by the Account Entry format transformation function - generateSterlingAccountingEntryForFormat100") {
@@ -138,4 +143,5 @@ class FeedsTestSuite extends FunSuite {
     assert(accLdgrL.get.size == 2)
     assert(List(accLdgr1, accLdgr2) == accLdgrL.get)
   }
+  
 }
