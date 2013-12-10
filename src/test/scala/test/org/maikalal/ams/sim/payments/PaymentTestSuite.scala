@@ -12,6 +12,7 @@ import org.maikalal.ams.sim.payments.PaymentProcessor
 import org.maikalal.ams.sim.payments.UKAccountNumber
 import org.scalatest.FunSuite
 import org.scalatest.junit.JUnitRunner
+import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
 
 @RunWith(classOf[JUnitRunner])
 class PaymentCreatorTestSuite extends FunSuite {
@@ -113,5 +114,10 @@ class PaymentCreatorTestSuite extends FunSuite {
     assert(trs.isInstanceOf[List[AccountTransaction]])
     assert(trs.length == 2)
     assert(trs == List(dbTr, crTr) || trs == List(crTr, dbTr))
+  }
+
+  test("TEST4 - Function recognized as PAYMUL payment string") {
+    val checkStr1 = """UNB+UNOA:1+BARCLAYS AMS+BARCLAYS BANK+130521:1006+VBT141201307++PAYMUL'"""
+    assert(PaymentFilesProcessor.isEdifactPaymulPaymentData(List(checkStr1)) == true)
   }
 }
