@@ -54,7 +54,7 @@ object BTRReader extends Logging {
   def convertSterlingBalanceRecordToAccountLedger(data: String): AccountLedger = {
     val acc = new UKAccountNumber(sortCode = data.substring(50, 56), accountNumber = data.substring(56, 64))
     val accountingDay = TransformationUtil.getDateTime(data.substring(1, 7), TransformationUtil.DT_FORMAT_DDMMYY).getOrElse(TransformationUtil.DEFAULT_END_DATE)
-    
+
     val debitOrCreditSignForOpeningBalance = data.substring(26, 27).toCharArray()(0) match {
       case '_' => -1
       case _ => 1
@@ -62,7 +62,7 @@ object BTRReader extends Logging {
     val openingBalance = BigDecimal(data.substring(27, 38))
     val prevEodBal = new AccountBalance(AccountBalance.BALANCE_TYPE_PREV_EOD,
       new Money(debitOrCreditSignForOpeningBalance * openingBalance, CurrencyUnit.GBP))
-    
+
     val debitOrCreditSignForClosingBalance = data.substring(38, 39).toCharArray()(0) match {
       case '-' => -1
       case _ => 1
@@ -82,6 +82,13 @@ object BTRReader extends Logging {
     balanceRecords.map { case (acc, data) => convertCurrencyBalanceRecordToAccountLedger(acc, data) }.toList
   }
 
+  /*
+   * Converts a Currency Balance block to Account Ledger
+   * There will be 2 trailer records - One for Credit balance and other for Debit balance
+   * Sum of these 2 balances provides the EOD balance for previous day. 
+   * The SOLD supplied Account Ledger balance is absent in the feeds. Hence, todal balance 
+   * Information is absent in the data.
+   */
   def convertCurrencyBalanceRecordToAccountLedger(acc: AccountNumber, data: List[String]): AccountLedger = {
     val accountingDay = TransformationUtil.getDateTime(data.head.substring(101, 106), TransformationUtil.DT_FORMAT_YYDDD).getOrElse(TransformationUtil.DEFAULT_END_DATE)
     //Sum balance of all records in the list to get the Debit balance
@@ -94,8 +101,8 @@ object BTRReader extends Logging {
       b + (debitOrCreditSignForClosingBalance * bal)
     }
 
-    val prevEod = new AccountBalance(BALANCE_TYPE_PREV_EOD, new Money(closingBalance, CurrencyUnit.EUR))
+    val eod = new AccountBalance(BALANCE_TYPE_EOD, new Money(closingBalance, CurrencyUnit.EUR))
 
-    new AccountLedger(account = acc, ledgerDate = accountingDay, balances = HashMap(BALANCE_TYPE_PREV_EOD -> prevEod), transactions = Nil)
+    new AccountLedger(account = acc, ledgerDate = accountingDay, balances = HashMap(BALANCE_TYPE_EOD -> eod), transactions = Nil)
   }
 }
