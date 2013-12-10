@@ -19,13 +19,13 @@ import org.maikalal.ams.sim.payments.Money
 import org.maikalal.ams.sim.payments.PaymentProcessor
 import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
 import org.maikalal.ams.sim.utils.TransformationUtil
-import com.barclays.corp.ams.log.Logging
 import com.typesafe.config.ConfigFactory
 import net.liftweb.json.DefaultFormats
 import net.liftweb.json.Serialization.writePretty
 import scala.util.Success
+import akka.event.slf4j.SLF4JLogging
 
-object BTRCreator extends Logging {
+object BTRCreator extends SLF4JLogging {
 
   implicit val formats = DefaultFormats ++
     List(new TransformationUtil.MyDateTimeSerializer(TransformationUtil.DT_FORMAT_CCYYMMDD),
@@ -38,8 +38,8 @@ object BTRCreator extends Logging {
     val confFile = args(0)
     val conf = ConfigFactory.load(confFile)
 
-    info("Following properties will be used for processing")
-    info("_______________________________________________________________________")
+    log.info("Following properties will be used for processing")
+    log.info("_______________________________________________________________________")
 
     val DD_PREVIOUS_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.in.folder.previous")
 
@@ -55,10 +55,10 @@ object BTRCreator extends Logging {
     val ddInputFolder = new File(DD_PREVIOUS_ACC_DATE_FEED_FOLDER)
     val referenceBTRFeeds = ddInputFolder.listFiles().toList.filterNot(_.isDirectory())
     if (referenceBTRFeeds == Nil || referenceBTRFeeds.size != 3) {
-      warn("There should be ONLY 3 files in the previous accounting day folder." +
+      log.warn("There should be ONLY 3 files in the previous accounting day folder." +
         "Two files containing the GBP(Sterling) account transactions." +
         "One file containing the CCY(Currency) account transactions.")
-      warn("The additional files will be aspired to be processed. But Correct results are not guaranteed.")
+      log.warn("The additional files will be aspired to be processed. But Correct results are not guaranteed.")
     }
 
     //Split the file list into 2 categories i.e. GBP and CCY
@@ -66,21 +66,21 @@ object BTRCreator extends Logging {
     val ddGBPFiles = referenceBTRFeeds.filter(file => isFileASterlingFeed(file))
     val ddCCYFiles = referenceBTRFeeds.filter(file => isFileACurrencyFeed(file))
 
-    info("Following Sterling GBP files will be considered for processing -")
-    ddGBPFiles.foreach(f => info(f.getCanonicalPath()))
-    info("Following Currency CCY files will be considered for processing -")
-    ddCCYFiles.foreach(f => info(f.getCanonicalPath()))
+    log.info("Following Sterling GBP files will be considered for processing -")
+    ddGBPFiles.foreach(f => log.info(f.getCanonicalPath()))
+    log.info("Following Currency CCY files will be considered for processing -")
+    ddCCYFiles.foreach(f => log.info(f.getCanonicalPath()))
 
     //Extract all AMS generated payment/transaction information
 
-    info("Getting all payment order from Payment files from location '" + DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL + "'")
+    log.info("Getting all payment order from Payment files from location '" + DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL + "'")
     val paymentFileCodec = Codec(conf.getString("ams.codec.payment"))
     val paymentOrdersInternal = PaymentFilesProcessor.extractPaymentOrders(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL)(paymentFileCodec)
-    info("Getting all payment order from Payment files from location '" + DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL + "'")
+    log.info("Getting all payment order from Payment files from location '" + DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL + "'")
     val paymentOrdersExternal = PaymentFilesProcessor.extractPaymentOrders(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL)(paymentFileCodec)
-    info("Generating transaction for all payment orders......")
+    log.info("Generating transaction for all payment orders......")
     val paymentTransactions = PaymentProcessor.generateTransactionPairs(paymentOrdersInternal ::: paymentOrdersExternal)
-    info("Generating Account Ledger containing Daily balance from transaction pairs......")
+    log.info("Generating Account Ledger containing Daily balance from transaction pairs......")
 
     //Calculate the Accounting Date. It should be date as present in the Transactions.
     val accountingDateBasedOnTransactionList = calculateTheTargetAccountingDate(paymentTransactions)
@@ -96,13 +96,13 @@ object BTRCreator extends Logging {
     val accountLedgersFromPaymentFiles = BalanceProcessor.generateAccountBalancePerDate(paymentTransactionsToConsider)
     val accountLedgersFromPaymentFilesMap = accountLedgersFromPaymentFiles.groupBy(_.account)
 
-    info("Following Payment Account Ledgers will be used for creating the Direct Data feeds.")
-    info("_______________________________________________________________________")
-    accountLedgersFromPaymentFiles.foreach(a => info(writePretty(a)))
-    info("_______________________________________________________________________")
-
+    log.debug("Following Payment Account Ledgers will be used for creating the Direct Data feeds.")
+    log.debug("_______________________________________________________________________")
+    accountLedgersFromPaymentFiles.foreach(a => log.info(writePretty(a)))
+    log.debug("_______________________________________________________________________")
+    log.info(s"""The [${accountLedgersFromPaymentFiles.length}] number of Accounts that have transactions related to Payments.""")
     //Processing accounts for GBP files
-    info("BEGIN processing of the GBP Sterling files.......")
+    log.info("BEGIN processing of the GBP Sterling files.......")
     for (gbpFile <- ddGBPFiles) {
       val finalAccLedgrs = BTRReader.extractPreviousEODBalanceFromFile(gbpFile)(directDataFeedCodec) match {
         case Success(refAccL) =>
@@ -112,12 +112,12 @@ object BTRCreator extends Logging {
             enrichAccountLedgerWithBalanceInformations(r, targetBatchDate, accountLedgersFromPaymentFilesMap.get(r.account).getOrElse(Nil))
           }
         case Failure(ex) =>
-          error(ex.toString())
+          log.error("Could not extract the required Transactions for Sterling accounts.", ex)
           Nil
       }
 
       val outputFileName = generateOuputFileName(DD_PRESENT_ACC_DATE_FEED_FOLDER, gbpFile.getName())
-      info("Creating the direct data feed for input file : '" + gbpFile.getCanonicalPath() + "' to output file : '" + outputFileName + "'")
+      log.info("Creating the direct data feed for input file : '" + gbpFile.getCanonicalPath() + "' to output file : '" + outputFileName + "'")
       val directDataAccStmnts = generateSterlingDDRecordsForFormat100(finalAccLedgrs)
       val batchDateFileHeader = generateFileHeaderForFormat100(DD_AMS_CUSTOMER_IDENTIFIER, targetBatchDate)
       val batchDateFileTrailer = generateFileTrailerForFormat100(finalAccLedgrs)
@@ -125,17 +125,16 @@ object BTRCreator extends Logging {
 
       printToFile(new File(outputFileName))(fw => fileData.foreach(fw.println)) match {
         case Success(_) =>
-          info("Creation of the SIMULATED direct data feed COMPLETED for input file : '" + gbpFile.getCanonicalPath() + "'")
-          info("Path to SIMULATED direct data feed file : '" + outputFileName + "'")
+          log.info("Creation of the SIMULATED direct data feed COMPLETED for input file : '" + gbpFile.getCanonicalPath() + "'")
+          log.info("Path to SIMULATED direct data feed file : '" + outputFileName + "'")
         case Failure(ex) =>
-          error("Creation of the SIMULATED direct data feed FAILED for input file : '" + gbpFile.getCanonicalPath() + "'")
-          error("Generated error :" + ex.toString())
+          log.error("Creation of the SIMULATED direct data feed FAILED for input file : '" + gbpFile.getCanonicalPath() + "'", ex)
       }
     }
-    info("FINISHED processing of all the GBP Sterling files.......")
+    log.info("FINISHED processing of all the GBP Sterling files.......")
 
     //Processing accounts for CCY : Currency files
-    info("BEGIN processing of the CCY Currency files.......")
+    log.info("BEGIN processing of the CCY Currency files.......")
     for (ccyFile <- ddCCYFiles) {
       val finalAccLedgrs = BTRReader.extractPreviousEODBalanceFromFile(ccyFile)(directDataFeedCodec) match {
         case Success(refAccL) =>
@@ -143,14 +142,14 @@ object BTRCreator extends Logging {
           //The resulted Account Ledger set will be written to file.
           refAccL.map { r =>
             enrichAccountLedgerWithBalanceInformations(r, targetBatchDate, accountLedgersFromPaymentFilesMap.get(r.account).getOrElse(Nil))
-          }          
+          }
         case Failure(ex) =>
-          error(ex.toString())
+          log.error("Could not extract required Transactions for Currency accounts.", ex)
           Nil
       }
 
       val outputFileName = generateOuputFileName(DD_PRESENT_ACC_DATE_FEED_FOLDER, ccyFile.getName())
-      info("Creating the direct data feed for input file : '" + ccyFile.getCanonicalPath() + "' to output file : '" + outputFileName + "'")
+      log.info("Creating the direct data feed for input file : '" + ccyFile.getCanonicalPath() + "' to output file : '" + outputFileName + "'")
       val directDataAccStmnts = generateCurrencyDDRecordsForFormat300(finalAccLedgrs)
       val batchDateFileHeader = generateFileHeaderForFormat300(DD_AMS_CUSTOMER_IDENTIFIER, targetBatchDate)
       val batchDateFileTrailer = generateFileTrailerForFormat300(finalAccLedgrs)
@@ -158,19 +157,18 @@ object BTRCreator extends Logging {
 
       printToFile(new File(outputFileName))(fw => fileData.foreach(fw.println)) match {
         case Success(_) =>
-          info("Creation of the SIMULATED direct data feed COMPLETED for input file : '" + ccyFile.getCanonicalPath() + "'")
-          info("Path to SIMULATED direct data feed file : '" + outputFileName + "'")
+          log.info("Creation of the SIMULATED direct data feed COMPLETED for input file : '" + ccyFile.getCanonicalPath() + "'")
+          log.info("Path to SIMULATED direct data feed file : '" + outputFileName + "'")
         case Failure(ex) =>
-          error("Creation of the SIMULATED direct data feed FAILED for input file : '" + ccyFile.getCanonicalPath() + "'")
-          error("Generated error :" + ex.toString())
+          log.error("Creation of the SIMULATED direct data feed FAILED for input file : '" + ccyFile.getCanonicalPath() + "'", ex)
       }
 
     }
-    info("FINISHED processing of the CCY Currency files.......")
+    log.info("FINISHED processing of the CCY Currency files.......")
 
-    info("++++++++++++++++++++++++++++++++++++++++++++")
-    info("+  FINISHED Creating all simulated files.  +")
-    info("++++++++++++++++++++++++++++++++++++++++++++")
+    log.info("++++++++++++++++++++++++++++++++++++++++++++")
+    log.info("+  FINISHED Creating all simulated files.  +")
+    log.info("++++++++++++++++++++++++++++++++++++++++++++")
 
   }
 
