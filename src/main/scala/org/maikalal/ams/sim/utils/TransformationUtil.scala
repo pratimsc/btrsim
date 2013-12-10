@@ -13,6 +13,7 @@ import net.liftweb.json.JDouble
 
 object TransformationUtil {
   val DT_FORMAT_CCYYMMDD = "yyyyMMdd"
+  val DT_FORMAT_CCYYMMDDHHmmssSSS = "yyyyMMddHHmmssSSS"
   val DT_FORMAT_DDMMYY = "ddMMYY"
   val DT_FORMAT_YYMMDD = "YYMMdd"
   val DT_FORMAT_YYDDD = "YYDDD"
@@ -38,7 +39,14 @@ object TransformationUtil {
   /*
    * Left justified text with size 
    */
-  def leftJustfiedFormattedString(v: String, size: Int): String = String.format("%1$-" + size + "s", v)
+  def leftJustfiedFormattedString(v: String, size: Int, truncate: Boolean = true, filler: Char = 0x20): String =
+    if (v.size < size && truncate == true) String.format("%1$-" + size + "s", v) else v.substring(0, size)
+
+  /*
+   * Left justified text with size 
+   */
+  def rightJustfiedFormattedString(v: String, size: Int, truncate: Boolean = true, filler: Char = 0x20): String =
+    if (v.size < size && truncate == true) String.format("%1$" + size + "s", v) else v.substring(v.size - size)
 
   case class MyDateTimeSerializer(val formatString: String) extends CustomSerializer[DateTime](format => (
     {
