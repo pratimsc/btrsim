@@ -40,13 +40,13 @@ object TransformationUtil {
    * Left justified text with size 
    */
   def leftJustfiedFormattedString(v: String, size: Int, truncate: Boolean = true, filler: Char = 0x20): String =
-    if (v.size < size && truncate == true) String.format("%1$-" + size + "s", v) else v.substring(0, size)
+    if (v.size > size && truncate == true) v.substring(0, size) else String.format("%1$-" + size + "s", v) 
 
   /*
    * Left justified text with size 
    */
   def rightJustfiedFormattedString(v: String, size: Int, truncate: Boolean = true, filler: Char = 0x20): String =
-    if (v.size < size && truncate == true) String.format("%1$" + size + "s", v) else v.substring(v.size - size)
+    if (v.size > size && truncate == true) v.substring(v.size - size) else String.format("%1$" + size + "s", v)
 
   case class MyDateTimeSerializer(val formatString: String) extends CustomSerializer[DateTime](format => (
     {
