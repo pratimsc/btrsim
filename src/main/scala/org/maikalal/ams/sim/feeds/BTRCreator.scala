@@ -24,6 +24,8 @@ import net.liftweb.json.DefaultFormats
 import net.liftweb.json.Serialization.writePretty
 import scala.util.Success
 import com.typesafe.scalalogging.slf4j.Logging
+import scala.util.Success
+import scala.util.Failure
 
 object BTRCreator extends Logging {
 
@@ -33,7 +35,9 @@ object BTRCreator extends Logging {
       new TransformationUtil.MyBigDecimalSerializer)
 
   def main(args: Array[String]): Unit = {
-    require(!(args.length < 1), "Please enter the Configuration file name. e.g. xyx.config")
+    require(
+      !(args.length < 1),
+      """Please add the directory containing configuration file to execution classpath and provide the configuration file's name e.g. xyx.config""")
 
     val confFile = args(0)
     val conf = ConfigFactory.load(confFile)
@@ -42,9 +46,7 @@ object BTRCreator extends Logging {
     logger.info("_______________________________________________________________________")
 
     val DD_PREVIOUS_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.in.folder.previous")
-
     val DD_PRESENT_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.out.folder.present")
-
     val DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL = conf.getString("ams.payment.in.folder.internal")
     val DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL = conf.getString("ams.payment.in.folder.external")
     val DD_PRESENT_ACC_DATE = conf.getString("ams.default.accounting.date.time")
@@ -55,9 +57,7 @@ object BTRCreator extends Logging {
     val ddInputFolder = new File(DD_PREVIOUS_ACC_DATE_FEED_FOLDER)
     val referenceBTRFeeds = ddInputFolder.listFiles().toList.filterNot(_.isDirectory())
     if (referenceBTRFeeds == Nil || referenceBTRFeeds.size != 3) {
-      logger.warn("There should be ONLY 3 files in the previous accounting day folder." +
-        "Two files containing the GBP(Sterling) account transactions." +
-        "One file containing the CCY(Currency) account transactions.")
+      logger.warn("""There should be ONLY 3 files in the previous accounting day folder. Two files containing the GBP(Sterling) account transactions. One file containing the CCY(Currency) account transactions.""")
       logger.warn("The additional files will be aspired to be processed. But Correct results are not guaranteed.")
     }
 
@@ -73,34 +73,47 @@ object BTRCreator extends Logging {
 
     //Extract all AMS generated payment/transaction information
 
-    logger.info("Getting all payment order from Payment files from location '" + DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL + "'")
+    logger.info(s"""Reading all payment order from Payment files from location [${DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL}""")
     val paymentFileCodec = Codec(conf.getString("ams.codec.payment"))
     val paymentOrdersInternal = PaymentFilesProcessor.extractPaymentOrders(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_INTERNAL)(paymentFileCodec)
-    logger.info("Getting all payment order from Payment files from location '" + DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL + "'")
+    logger.info(s"""Reading all payment order from Payment files from location [${DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL}""")
     val paymentOrdersExternal = PaymentFilesProcessor.extractPaymentOrders(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL)(paymentFileCodec)
-    logger.info("Generating transaction for all payment orders......")
+    logger.info("Generating simulated transaction pairs for all processed payment orders.")
     val paymentTransactions = PaymentProcessor.generateTransactionPairs(paymentOrdersInternal ::: paymentOrdersExternal)
-    logger.info("Generating Account Ledger containing Daily balance from transaction pairs......")
+    logger.info(s"""The [${paymentTransactions.length}] number of Transaction pairs s are generated based on payment files provided.""")
 
     //Calculate the Accounting Date. It should be date as present in the Transactions.
-    val accountingDateBasedOnTransactionList = calculateTheTargetAccountingDate(paymentTransactions)
-    val accountingDateBasedOnBatchConfiguration = TransformationUtil.getDateTime(DD_PRESENT_ACC_DATE, DD_PRESENT_ACC_DATE_FORMAT)
-    val targetBatchDate = accountingDateBasedOnBatchConfiguration.getOrElse(accountingDateBasedOnTransactionList) match {
-      case TransformationUtil.DEFAULT_END_DATE =>
-        DateTime.now()
-      case date => date
+    val targetBatchDate = TransformationUtil.getDateTime(DD_PRESENT_ACC_DATE, DD_PRESENT_ACC_DATE_FORMAT) match {
+      case Success(configDate) =>
+        logger.info(s"""Date based on batch configuration file is "${TransformationUtil.getDateInFormat(configDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}"""")
+        configDate
+      case Failure(ex) =>
+        logger.warn("""No batch date {ams.default.accounting.date.time}  or incorrect format {ams.default.accounting.date.format} was supplied in the configuration file -${confFile}""", ex)
+        calculateTheTargetAccountingDate(paymentTransactions) match {
+          case Some(paymentDate) =>
+            logger.info(s"""Date based on supplied payment files is "${TransformationUtil.getDateInFormat(paymentDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}"""")
+            logger.warn("""Using date extracted from payment files are default processing date""")
+            paymentDate
+          case None =>
+            val defaultDate = DateTime.now()
+            logger.info(s"""Using present system date as default date "${TransformationUtil.getDateInFormat(defaultDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}"""")
+            defaultDate
+        }
     }
 
+    logger.info(s"""Target Batch processing Date is [${TransformationUtil.getDateInFormat(targetBatchDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}]""")
+    
     val paymentTransactionsToConsider = paymentTransactions.filter(tr => tr.transacionDate.getMillis() <= targetBatchDate.getMillis())
+    logger.info(s"""The [${paymentTransactionsToConsider.length}] number of Transactions are considers for processing as they are either less than of equal to batch processing date [${TransformationUtil.getDateInFormat(targetBatchDate, TransformationUtil.DT_FORMAT_CCYYMMDD)}] .""")
 
     val accountLedgersFromPaymentFiles = BalanceProcessor.generateAccountBalancePerDate(paymentTransactionsToConsider)
     val accountLedgersFromPaymentFilesMap = accountLedgersFromPaymentFiles.groupBy(_.account)
-
+    logger.info(s"""Generated reference map for previos day's balance""")
     logger.debug("Following Payment Account Ledgers will be used for creating the Direct Data feeds.")
     logger.debug("_______________________________________________________________________")
     accountLedgersFromPaymentFiles.foreach(a => logger.debug(writePretty(a)))
     logger.debug("_______________________________________________________________________")
-    logger.info(s"""The [${accountLedgersFromPaymentFiles.length}] number of Accounts that have transactions related to Payments.""")
+
     //Processing accounts for GBP files
     logger.info("BEGIN processing of the GBP Sterling files.......")
     for (gbpFile <- ddGBPFiles) {
@@ -403,8 +416,16 @@ object BTRCreator extends Logging {
     strBldr.append(TransformationUtil.leftJustfiedFormattedString(transaction.transactionReferenceNumber, 4))
     //Amount is of size 11, in minor currency and 0 precision
     strBldr.append("%011.0f".format(transaction.transactionValue.amountInMinorCurrency.abs))
-    strBldr.append(TransformationUtil.leftJustfiedFormattedString(transaction.narrative1, 18))
-    strBldr.append(TransformationUtil.leftJustfiedFormattedString(transaction.narrative2, 18))
+
+    val narrative = (transaction.narrative1, transaction.narrative2) match {
+      case (TransformationUtil.EMPTY_VALUE_STRING, narr) if !narr.isEmpty() =>
+        TransformationUtil.rightJustfiedFormattedString(TransformationUtil.leftJustfiedFormattedString(narr, 18, false), 36)
+      case (narr, TransformationUtil.EMPTY_VALUE_STRING) if !narr.isEmpty() =>
+        TransformationUtil.leftJustfiedFormattedString(narr, 36)
+      case (narr1, narr2) =>
+        TransformationUtil.leftJustfiedFormattedString(narr1.trim + narr2.trim(), 36, true, 0x20)
+    }
+    strBldr.append(narrative)
     strBldr.append(entryType)
     strBldr.append(chequeNumber)
     strBldr.append(TransformationUtil.getDateInFormat(transaction.transacionDate, TransformationUtil.DT_FORMAT_DDMMYY).get)
@@ -514,11 +535,16 @@ object BTRCreator extends Logging {
    *
    */
 
-  def calculateTheTargetAccountingDate(transactions: List[AccountTransaction]): DateTime =
-    transactions.foldLeft(TransformationUtil.DEFAULT_START_DATE) { (maxDate, tr) =>
-      if (tr.transacionDate.getMillis() > maxDate.getMillis())
-        tr.transacionDate
-      else
-        maxDate
+  def calculateTheTargetAccountingDate(transactions: List[AccountTransaction]): Option[DateTime] = transactions match {
+    case Nil => None
+    case _ => Some {
+      transactions.foldLeft(TransformationUtil.DEFAULT_START_DATE) { (maxDate, tr) =>
+        if (tr.transacionDate.getMillis() > maxDate.getMillis())
+          tr.transacionDate
+        else
+          maxDate
+      }
     }
+
+  }
 }
