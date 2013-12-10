@@ -54,12 +54,12 @@ object PaymentFilesProcessor extends Logging {
     recur(file, List())
   }
 
-  private def isEdifactPaymulPaymentData(data: List[String]): Boolean = data match {
+  def isEdifactPaymulPaymentData(data: List[String]): Boolean = data match {
     case head :: tail => head.contains("PAYMUL")
     case _ => false
   }
 
-  private def isJsonPaymentData(data: List[String]): Boolean = parse(data.mkString) \\ "monetaryAmount" match {
+  def isJsonPaymentData(data: List[String]): Boolean = parse(data.mkString) \\ "monetaryAmount" match {
     case JObject(head :: tail) => true
     case _ => false
   }
