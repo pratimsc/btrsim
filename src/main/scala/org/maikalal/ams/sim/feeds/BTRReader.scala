@@ -78,7 +78,8 @@ object BTRReader extends Logging {
    * Convert the Account trailer records to List of AccountLedgers - Currency ONLY
    */
   def extractBalanceInformationFromCurrencyFeed(lines: List[String]): List[AccountLedger] = {
-    val balanceRecords = lines.filter(_.substring(14, 15) == "0").groupBy(r => new UKAccountNumber(sortCode = r.substring(0, 6), accountNumber = r.substring(6, 14)))
+    val balanceRecords = lines.filter(l => l.substring(14, 15) == "0" && l.substring(0, 3) != "FLH" && l.substring(0, 3) != "FLT")
+      .groupBy(r => new UKAccountNumber(sortCode = r.substring(0, 6), accountNumber = r.substring(6, 14)))
     balanceRecords.map { case (acc, data) => convertCurrencyBalanceRecordToAccountLedger(acc, data) }.toList
   }
 
