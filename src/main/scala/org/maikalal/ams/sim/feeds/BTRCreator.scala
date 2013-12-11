@@ -89,7 +89,7 @@ object BTRCreator extends Logging {
         logger.info(s"""Date based on batch configuration file is "${TransformationUtil.getDateInFormat(configDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}"""")
         configDate
       case Failure(ex) =>
-        logger.warn("""No batch date {ams.default.accounting.date.time}  or incorrect format {ams.default.accounting.date.format} was supplied in the configuration file -${confFile}""", ex)
+        logger.warn(s"""No batch date {ams.default.accounting.date.time}  or incorrect format {ams.default.accounting.date.format} was supplied in the configuration file -${confFile}""", ex)
         calculateTheTargetAccountingDate(paymentTransactions) match {
           case Some(paymentDate) =>
             logger.info(s"""Date based on supplied payment files is "${TransformationUtil.getDateInFormat(paymentDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}"""")
@@ -136,6 +136,7 @@ object BTRCreator extends Logging {
    * Defining a common function to generate feeds for GBP and Currency
    */
   def processBTRFiles(inBtrFile: BTRFeed, outBtrFile: BTRFeed, customerIdentifier: String, batchDate: DateTime, accountLedgers: Map[AccountNumber, List[AccountLedger]])(implicit directDataFeedCodec: Codec): Unit = {
+    logger.info(s"Processing the direct data feed file : '${inBtrFile.file.getCanonicalPath()}' as a '${inBtrFile.feedType.getClass().getName()}' feed to output file : '${outBtrFile.file}'")
     val accLdgrs = BTRReader.extractPreviousEODBalanceFromFile(inBtrFile)(directDataFeedCodec) match {
       case Success(refAccL) =>
         //Merge all Account Ledgers generated from Payment files into this Account Ledgers with Previous day's balance information
@@ -149,15 +150,12 @@ object BTRCreator extends Logging {
     }
 
     val fileData = generateBTRFeedFileData(customerIdentifier, accLdgrs, batchDate, outBtrFile.feedType)
-
-    logger.info("Creating the direct data feed for input file : '" + inBtrFile.file.getCanonicalPath() + "' to output file : '" + outBtrFile + "'")
-
     printToFile(outBtrFile.file)(fw => fileData.foreach(fw.println)) match {
       case Success(_) =>
-        logger.info("Creation of the SIMULATED direct data feed COMPLETED for input file : '" + inBtrFile.file.getCanonicalPath() + "'")
-        logger.info("Path to SIMULATED direct data feed file : '" + outBtrFile.file.getCanonicalPath() + "'")
+        logger.info(s"Creation of the SIMULATED direct data feed COMPLETED for input file : '${inBtrFile.file.getCanonicalPath()}'")
+        logger.info(s"Path to SIMULATED direct data feed file : '${outBtrFile.file.getCanonicalPath()}'")
       case Failure(ex) =>
-        logger.error("Creation of the SIMULATED direct data feed FAILED for input file : '" + inBtrFile.file.getCanonicalPath() + "'", ex)
+        logger.error(s"Creation of the SIMULATED direct data feed FAILED for input file : '${inBtrFile.file.getCanonicalPath()}'", ex)
     }
   }
 
