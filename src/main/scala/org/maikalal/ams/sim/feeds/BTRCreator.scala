@@ -1,6 +1,7 @@
 package org.maikalal.ams.sim.feeds
 
 import java.io.File
+
 import scala.collection.immutable.HashMap
 import scala.collection.mutable.StringBuilder
 import scala.io.Codec
@@ -9,6 +10,7 @@ import scala.math.BigDecimal.int2bigDecimal
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
+
 import org.joda.time.DateTime
 import org.maikalal.ams.sim.balances.AccountBalance
 import org.maikalal.ams.sim.balances.AccountLedger
@@ -19,13 +21,12 @@ import org.maikalal.ams.sim.payments.Money
 import org.maikalal.ams.sim.payments.PaymentProcessor
 import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
 import org.maikalal.ams.sim.utils.TransformationUtil
+
 import com.typesafe.config.ConfigFactory
+import com.typesafe.scalalogging.slf4j.Logging
+
 import net.liftweb.json.DefaultFormats
 import net.liftweb.json.Serialization.writePretty
-import scala.util.Success
-import com.typesafe.scalalogging.slf4j.Logging
-import scala.util.Success
-import scala.util.Failure
 
 object BTRCreator extends Logging {
 
@@ -63,13 +64,13 @@ object BTRCreator extends Logging {
 
     //Split the file list into 2 categories i.e. GBP and CCY
     implicit val directDataFeedCodec = Codec(conf.getString("ams.codec.btr"))
-    val ddGBPFiles = referenceBTRFeeds.filter(file => isFileASterlingFeed(file))
-    val ddCCYFiles = referenceBTRFeeds.filter(file => isFileACurrencyFeed(file))
+    val ddGBPFiles = referenceBTRFeeds.filter(file => isFileASterlingFeed(file)).map(BTRFeed(_, BTRSterlingFeed))
+    val ddCCYFiles = referenceBTRFeeds.filter(file => isFileACurrencyFeed(file)).map(BTRFeed(_, BTRCurrencyFeed))
 
     logger.info("Following Sterling GBP files will be considered for processing -")
-    ddGBPFiles.foreach(f => logger.info(f.getCanonicalPath()))
+    ddGBPFiles.foreach(f => logger.info(f.file.getCanonicalPath()))
     logger.info("Following Currency CCY files will be considered for processing -")
-    ddCCYFiles.foreach(f => logger.info(f.getCanonicalPath()))
+    ddCCYFiles.foreach(f => logger.info(f.file.getCanonicalPath()))
 
     //Extract all AMS generated payment/transaction information
 
@@ -102,7 +103,7 @@ object BTRCreator extends Logging {
     }
 
     logger.info(s"""Target Batch processing Date is [${TransformationUtil.getDateInFormat(targetBatchDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}]""")
-    
+
     val paymentTransactionsToConsider = paymentTransactions.filter(tr => tr.transacionDate.getMillis() <= targetBatchDate.getMillis())
     logger.info(s"""The [${paymentTransactionsToConsider.length}] number of Transactions are considers for processing as they are either less than of equal to batch processing date [${TransformationUtil.getDateInFormat(targetBatchDate, TransformationUtil.DT_FORMAT_CCYYMMDD)}] .""")
 
@@ -115,74 +116,70 @@ object BTRCreator extends Logging {
     logger.debug("_______________________________________________________________________")
 
     //Processing accounts for GBP files
-    logger.info("BEGIN processing of the GBP Sterling files.......")
-    for (gbpFile <- ddGBPFiles) {
-      val finalAccLedgrs = BTRReader.extractPreviousEODBalanceFromFile(gbpFile)(directDataFeedCodec) match {
-        case Success(refAccL) =>
-          //Merge all Account Ledgers generated from Payment files into this Account Ledgers with Previous day's balance information
-          //The resulted Account Ledger set will be written to file.
-          refAccL.map { r =>
-            enrichAccountLedgerWithBalanceInformations(r, targetBatchDate, accountLedgersFromPaymentFilesMap.get(r.account).getOrElse(Nil))
-          }
-        case Failure(ex) =>
-          logger.error("Could not extract the required Transactions for Sterling accounts.", ex)
-          Nil
-      }
-
-      val outputFileName = generateOuputFileName(DD_PRESENT_ACC_DATE_FEED_FOLDER, gbpFile.getName())
-      logger.info("Creating the direct data feed for input file : '" + gbpFile.getCanonicalPath() + "' to output file : '" + outputFileName + "'")
-      val directDataAccStmnts = generateSterlingDDRecordsForFormat100(finalAccLedgrs)
-      val batchDateFileHeader = generateFileHeaderForFormat100(DD_AMS_CUSTOMER_IDENTIFIER, targetBatchDate)
-      val batchDateFileTrailer = generateFileTrailerForFormat100(finalAccLedgrs)
-      val fileData = (batchDateFileHeader :: directDataAccStmnts.toList.flatMap(r => r._2)) :+ batchDateFileTrailer
-
-      printToFile(new File(outputFileName))(fw => fileData.foreach(fw.println)) match {
-        case Success(_) =>
-          logger.info("Creation of the SIMULATED direct data feed COMPLETED for input file : '" + gbpFile.getCanonicalPath() + "'")
-          logger.info("Path to SIMULATED direct data feed file : '" + outputFileName + "'")
-        case Failure(ex) =>
-          logger.error("Creation of the SIMULATED direct data feed FAILED for input file : '" + gbpFile.getCanonicalPath() + "'", ex)
-      }
+    logger.info("BEGIN processing of the Input BTR feeds.......")
+    for (inBtrFile <- ddGBPFiles ::: ddCCYFiles) {
+      processBTRFiles(inBtrFile = inBtrFile,
+        outBtrFile = BTRFeed(new File(generateOuputFileName(DD_PRESENT_ACC_DATE_FEED_FOLDER, inBtrFile.file.getName())), inBtrFile.feedType),
+        customerIdentifier = DD_AMS_CUSTOMER_IDENTIFIER,
+        batchDate = targetBatchDate,
+        accountLedgers = accountLedgersFromPaymentFilesMap)(directDataFeedCodec)
     }
-    logger.info("FINISHED processing of all the GBP Sterling files.......")
-
-    //Processing accounts for CCY : Currency files
-    logger.info("BEGIN processing of the CCY Currency files.......")
-    for (ccyFile <- ddCCYFiles) {
-      val finalAccLedgrs = BTRReader.extractPreviousEODBalanceFromFile(ccyFile)(directDataFeedCodec) match {
-        case Success(refAccL) =>
-          //Merge all Account Ledgers generated from Payment files into this Account Ledgers with Previous day's balance information
-          //The resulted Account Ledger set will be written to file.
-          refAccL.map { r =>
-            enrichAccountLedgerWithBalanceInformations(r, targetBatchDate, accountLedgersFromPaymentFilesMap.get(r.account).getOrElse(Nil))
-          }
-        case Failure(ex) =>
-          logger.error("Could not extract required Transactions for Currency accounts.", ex)
-          Nil
-      }
-
-      val outputFileName = generateOuputFileName(DD_PRESENT_ACC_DATE_FEED_FOLDER, ccyFile.getName())
-      logger.info("Creating the direct data feed for input file : '" + ccyFile.getCanonicalPath() + "' to output file : '" + outputFileName + "'")
-      val directDataAccStmnts = generateCurrencyDDRecordsForFormat300(finalAccLedgrs)
-      val batchDateFileHeader = generateFileHeaderForFormat300(DD_AMS_CUSTOMER_IDENTIFIER, targetBatchDate)
-      val batchDateFileTrailer = generateFileTrailerForFormat300(finalAccLedgrs)
-      val fileData = (batchDateFileHeader :: directDataAccStmnts.toList.flatMap(r => r._2)) :+ batchDateFileTrailer
-
-      printToFile(new File(outputFileName))(fw => fileData.foreach(fw.println)) match {
-        case Success(_) =>
-          logger.info("Creation of the SIMULATED direct data feed COMPLETED for input file : '" + ccyFile.getCanonicalPath() + "'")
-          logger.info("Path to SIMULATED direct data feed file : '" + outputFileName + "'")
-        case Failure(ex) =>
-          logger.error("Creation of the SIMULATED direct data feed FAILED for input file : '" + ccyFile.getCanonicalPath() + "'", ex)
-      }
-
-    }
-    logger.info("FINISHED processing of the CCY Currency files.......")
+    logger.info("FINISHED processing of all the BTR feeds.......")
 
     logger.info("++++++++++++++++++++++++++++++++++++++++++++")
     logger.info("+  FINISHED Creating all simulated files.  +")
     logger.info("++++++++++++++++++++++++++++++++++++++++++++")
 
+  }
+
+  /**
+   * Defining a common function to generate feeds for GBP and Currency
+   */
+  def processBTRFiles(inBtrFile: BTRFeed, outBtrFile: BTRFeed, customerIdentifier: String, batchDate: DateTime, accountLedgers: Map[AccountNumber, List[AccountLedger]])(implicit directDataFeedCodec: Codec): Unit = {
+    val accLdgrs = BTRReader.extractPreviousEODBalanceFromFile(inBtrFile)(directDataFeedCodec) match {
+      case Success(refAccL) =>
+        //Merge all Account Ledgers generated from Payment files into this Account Ledgers with Previous day's balance information
+        //The resulted Account Ledger set will be written to file.
+        refAccL.map { r =>
+          enrichAccountLedgerWithBalanceInformations(r, batchDate, accountLedgers.get(r.account).getOrElse(Nil))
+        }
+      case Failure(ex) =>
+        logger.error("Could not extract the required Transactions for Sterling accounts.", ex)
+        Nil
+    }
+
+    val fileData = generateBTRFeedFileData(customerIdentifier, accLdgrs, batchDate, outBtrFile.feedType)
+
+    logger.info("Creating the direct data feed for input file : '" + inBtrFile.file.getCanonicalPath() + "' to output file : '" + outBtrFile + "'")
+
+    printToFile(outBtrFile.file)(fw => fileData.foreach(fw.println)) match {
+      case Success(_) =>
+        logger.info("Creation of the SIMULATED direct data feed COMPLETED for input file : '" + inBtrFile.file.getCanonicalPath() + "'")
+        logger.info("Path to SIMULATED direct data feed file : '" + outBtrFile.file.getCanonicalPath() + "'")
+      case Failure(ex) =>
+        logger.error("Creation of the SIMULATED direct data feed FAILED for input file : '" + inBtrFile.file.getCanonicalPath() + "'", ex)
+    }
+  }
+
+  /**
+   *
+   */
+  def generateBTRFeedFileData(customerIdentifier: String, accLdgrs: List[AccountLedger], batchDate: DateTime, feedType: BTRType) = {
+    val (batchDateFileHeader, directDataAccStmnts, batchDateFileTrailer) = feedType match {
+      case BTRSterlingFeed =>
+        val batchDateFileHeader = generateFileHeaderForFormat100(customerIdentifier, batchDate)
+        val directDataAccStmnts = generateSterlingDDRecordsForFormat100(accLdgrs)
+        val batchDateFileTrailer = generateFileTrailerForFormat100(accLdgrs)
+        (batchDateFileHeader, directDataAccStmnts, batchDateFileTrailer)
+      case BTRCurrencyFeed =>
+        val batchDateFileHeader = generateFileHeaderForFormat300(customerIdentifier, batchDate)
+        val directDataAccStmnts = generateCurrencyDDRecordsForFormat300(accLdgrs)
+        val batchDateFileTrailer = generateFileTrailerForFormat300(accLdgrs)
+        (batchDateFileHeader, directDataAccStmnts, batchDateFileTrailer)
+      case _ => (TransformationUtil.EMPTY_VALUE_STRING, Nil, TransformationUtil.EMPTY_VALUE_STRING)
+    }
+    //Join the Header, Body and Trailer
+    (batchDateFileHeader :: directDataAccStmnts) :+ batchDateFileTrailer
   }
 
   /**
@@ -363,14 +360,14 @@ object BTRCreator extends Logging {
   /**
    *
    */
-  def generateSterlingDDRecordsForFormat100(accLdgrs: List[AccountLedger]): Map[AccountNumber, List[String]] =
-    accLdgrs.map(r => (r.account -> generateSterlingDDRecordsForFormat100(r))).toMap
+  def generateSterlingDDRecordsForFormat100(accLdgrs: List[AccountLedger]): List[String] =
+    accLdgrs.flatMap(r => generateSterlingDDRecordsForFormat100(r))
 
   /**
    *
    */
-  def generateCurrencyDDRecordsForFormat300(accLdgrs: List[AccountLedger]): Map[AccountNumber, List[String]] =
-    accLdgrs.map(r => (r.account -> generateCurrencyDDRecordsForFormat300(r))).toMap
+  def generateCurrencyDDRecordsForFormat300(accLdgrs: List[AccountLedger]): List[String] =
+    accLdgrs.flatMap(r => generateCurrencyDDRecordsForFormat300(r))
 
   /**
    *
