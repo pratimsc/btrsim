@@ -26,6 +26,8 @@ import org.maikalal.ams.sim.payments.PaymentProcessor
 import org.maikalal.ams.sim.balances.BalanceProcessor
 import scala.util.Success
 import scala.util.Failure
+import org.maikalal.ams.sim.feeds.BTRFeed
+import org.maikalal.ams.sim.feeds.BTRSterlingFeed
 
 @RunWith(classOf[JUnitRunner])
 class FeedsTestSuite extends FunSuite {
@@ -110,16 +112,7 @@ class FeedsTestSuite extends FunSuite {
     assert(refAccLdgr == formattedAccLdgr)
   }
 
-  test("Test4 - Check whether function correctly identifies a Sterling file") {
-    val refString = List("""FLH1222222T96CART0196CARTF0180000100130841408463097250313                                           """)
-    assert(BTRReader.isSterlingData(refString))
-  }
-
-  test("Test5 - Check whether function correctly identifies a Currency file") {
-    val refString = List("""FLH1222222F96CART0196CARTF0540000300133121332263097081113                                                                                                                                                                                                                                                   """)
-    assert(BTRReader.isCurrencyData(refString))
-  }
-
+  
   test("Test6 - Check wether Account Ledger information is correctly extracted from Sterling Feed ") {
     implicit val directDataFeedCodec = Codec.UTF8
     val file = new File("""C:\data\code\eclipse\20130412\AMSSimulator\src\test\resources\feeds\GBP_DC1_20131108""")
@@ -137,7 +130,7 @@ class FeedsTestSuite extends FunSuite {
         AccountBalance.BALANCE_TYPE_EOD -> AccountBalance(AccountBalance.BALANCE_TYPE_EOD, Money(79, CurrencyUnit.GBP))),
       transactions = List())
 
-    val accLdgrL = BTRReader.extractPreviousEODBalanceFromFile(file)
+    val accLdgrL = BTRReader.extractPreviousEODBalanceFromFile(BTRFeed(file,BTRSterlingFeed))
 
     assert(accLdgrL.isSuccess)
     assert(accLdgrL.get.size == 2)
