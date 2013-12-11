@@ -1,6 +1,5 @@
 package org.maikalal.ams.sim.feeds
 
-import com.barclays.corp.ams.log.Logging
 import scala.io.Codec
 import java.io.File
 import scala.io.Source
@@ -15,34 +14,32 @@ import org.maikalal.ams.sim.utils.TransformationUtil
 import org.maikalal.ams.sim.balances.AccountLedger
 import scala.collection.immutable.HashMap
 import org.maikalal.ams.sim.payments.AccountNumber
+import akka.event.slf4j.SLF4JLogging
 
-object BTRReader extends Logging {
-  def extractPreviousEODBalanceFromFile(file: File)(implicit directDataFeedCodec: Codec): Try[List[AccountLedger]] = Try {
-    val src = Source.fromFile(file)
+case class BTRFeed(val file: File, val feedType: BTRType)
+
+trait BTRType {
+  def isSterlingFeed = false
+  def isCurrencyFeed = false
+}
+object BTRSterlingFeed extends BTRType {
+  override def isSterlingFeed = true
+}
+object BTRCurrencyFeed extends BTRType {
+  override def isCurrencyFeed = true
+}
+
+object BTRReader extends SLF4JLogging {
+  def extractPreviousEODBalanceFromFile(btrFeed: BTRFeed)(implicit directDataFeedCodec: Codec): Try[List[AccountLedger]] = Try {
+    val src = Source.fromFile(btrFeed.file)
     val lines = src.getLines.toList
     src.close
-    if (isSterlingData(lines))
-      extractBalanceInformationFromSterlingFeed(lines)
-    else if (isCurrencyData(lines))
-      extractBalanceInformationFromCurrencyFeed(lines)
-    else
-      Nil
-  }
+    btrFeed.feedType match {
+      case BTRSterlingFeed => extractBalanceInformationFromSterlingFeed(lines)
+      case BTRCurrencyFeed => extractBalanceInformationFromCurrencyFeed(lines)
+      case _ => Nil
+    }
 
-  /**
-   * This function checks whether the input file is a direct data GBP file or not
-   */
-  def isSterlingData(lines: List[String]): Boolean = lines match {
-    case h :: hl if (h.length() == 100 && h.substring(0, 4) == "FLH1" && h.substring(10, 11).charAt(0) == 'T') => true
-    case _ => false
-  }
-
-  /**
-   * This function checks whether the input file is a direct data Currency file or not
-   */
-  def isCurrencyData(lines: List[String]): Boolean = lines match {
-    case h :: hl if (h.length() == 300 && h.substring(0, 4) == "FLH1" && h.substring(10, 11).charAt(0) == 'F') => true
-    case _ => false
   }
 
   /*
