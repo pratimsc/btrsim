@@ -10,6 +10,7 @@ import org.joda.money.CurrencyUnit
 import net.liftweb.json.JDouble
 import net.liftweb.json.JInt
 import net.liftweb.json.JDouble
+import java.io.File
 
 object TransformationUtil {
   val DT_FORMAT_CCYYMMDD = "yyyyMMdd"
@@ -40,13 +41,29 @@ object TransformationUtil {
    * Left justified text with size 
    */
   def leftJustfiedFormattedString(v: String, size: Int, truncate: Boolean = true, filler: Char = 0x20): String =
-    if (v.size > size && truncate == true) v.substring(0, size) else String.format("%1$-" + size + "s", v) 
+    if (v.size > size && truncate == true) v.substring(0, size) else String.format("%1$-" + size + "s", v)
 
   /*
    * Left justified text with size 
    */
   def rightJustfiedFormattedString(v: String, size: Int, truncate: Boolean = true, filler: Char = 0x20): String =
     if (v.size > size && truncate == true) v.substring(v.size - size) else String.format("%1$" + size + "s", v)
+
+  /*
+   * Helper function to extract all files from a folder
+   */
+  def extractFilesFromFolder(file: File): List[File] = {
+    def recur(files: List[File], tree: List[File]): List[File] = files match {
+      case h :: tail =>
+        if (h.isDirectory()) {
+          recur(h.listFiles().toList ::: tail, tree)
+        } else {
+          recur(tail, h :: tree)
+        }
+      case _ => tree
+    }
+    recur(List(file), List())
+  }
 
   case class MyDateTimeSerializer(val formatString: String) extends CustomSerializer[DateTime](format => (
     {
