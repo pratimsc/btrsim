@@ -1,4 +1,4 @@
-package org.maikalal.ams.sim.feeds
+package ams.sim.feeds
 
 import java.io.File
 
@@ -43,7 +43,6 @@ object BTRCreator extends Logging {
     val confFile = args(0)
     val conf = ConfigFactory.load(confFile)
 
-    logger.info("Following properties will be used for processing")
     logger.info("_______________________________________________________________________")
 
     val DD_PREVIOUS_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.in.folder.previous")
@@ -81,7 +80,7 @@ object BTRCreator extends Logging {
     val paymentOrdersExternal = PaymentFilesProcessor.extractPaymentOrders(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL)(paymentFileCodec)
     logger.info("Generating simulated transaction pairs for all processed payment orders.")
     val paymentTransactions = PaymentProcessor.generateTransactionPairs(paymentOrdersInternal ::: paymentOrdersExternal)
-    logger.info(s"""The [${paymentTransactions.length}] number of Transaction pairs s are generated based on payment files provided.""")
+    logger.info(s"""The [${paymentTransactions.length}] number of Transaction pairs are generated based on payment files provided.""")
 
     //Calculate the Accounting Date. It should be date as present in the Transactions.
     val targetBatchDate = TransformationUtil.getDateTime(DD_PRESENT_ACC_DATE, DD_PRESENT_ACC_DATE_FORMAT) match {
@@ -492,8 +491,8 @@ object BTRCreator extends Logging {
    */
   def generateCurrencyBalanceRecordForFormat300(accLdgr: AccountLedger): List[String] = {
 
-    val accountType = 0x30 //Constant value '0'
-    val entryDate = 0x20 + TransformationUtil.getDateInFormat(accLdgr.ledgerDate, TransformationUtil.DT_FORMAT_DDMMYY).get
+    val accountType = 0x30.toChar //Constant value '0'
+    val entryDate = 0x20.toChar + TransformationUtil.getDateInFormat(accLdgr.ledgerDate, TransformationUtil.DT_FORMAT_YYDDD).get
     //Get sum of all Credit transaction
     val balDailyCredit = accLdgr.transactions.filter(_.isCreditTransaction)
       .map(_.transactionValue.amountInMinorCurrency)
