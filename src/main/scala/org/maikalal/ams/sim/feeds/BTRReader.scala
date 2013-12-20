@@ -1,20 +1,24 @@
-package org.maikalal.ams.sim.feeds
+package ams.sim.feeds
 
-import scala.io.Codec
 import java.io.File
-import scala.io.Source
-import scala.util.Try
-import org.maikalal.ams.sim.payments.UKAccountNumber
-import org.maikalal.ams.sim.balances.AccountBalance
-import org.maikalal.ams.sim.balances.AccountBalance._
-import org.maikalal.ams.sim.balances.BalanceProcessor
-import org.joda.money.CurrencyUnit
-import org.maikalal.ams.sim.payments.Money
-import org.maikalal.ams.sim.utils.TransformationUtil
-import org.maikalal.ams.sim.balances.AccountLedger
+
 import scala.collection.immutable.HashMap
+import scala.io.Codec
+import scala.io.Source
+import scala.math.BigDecimal.int2bigDecimal
+import scala.util.Try
+
+import org.joda.money.CurrencyUnit
+import org.maikalal.ams.sim.balances.AccountBalance
+import org.maikalal.ams.sim.balances.AccountBalance.BALANCE_TYPE_EOD
+import org.maikalal.ams.sim.balances.AccountBalance.BALANCE_TYPE_PREV_EOD
+import org.maikalal.ams.sim.balances.AccountLedger
 import org.maikalal.ams.sim.payments.AccountNumber
-import akka.event.slf4j.SLF4JLogging
+import org.maikalal.ams.sim.payments.Money
+import org.maikalal.ams.sim.payments.UKAccountNumber
+import org.maikalal.ams.sim.utils.TransformationUtil
+
+import com.typesafe.scalalogging.slf4j.Logging
 
 case class BTRFeed(val file: File, val feedType: BTRType)
 
@@ -29,7 +33,7 @@ object BTRCurrencyFeed extends BTRType {
   override def isCurrencyFeed = true
 }
 
-object BTRReader extends SLF4JLogging {
+object BTRReader extends Logging {
   def extractPreviousEODBalanceFromFile(btrFeed: BTRFeed)(implicit directDataFeedCodec: Codec): Try[List[AccountLedger]] = Try {
     val src = Source.fromFile(btrFeed.file)
     val lines = src.getLines.toList
