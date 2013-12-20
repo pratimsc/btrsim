@@ -27,21 +27,27 @@ object PaymentFilesProcessor extends Logging {
   }
 
   def extractPaymentOrderFromFile(file: File)(implicit paymentFileCodec: Codec): Try[List[PaymentOrder]] = Try {
+    logger.debug(s"Processing payment file ${file.getName()}")
     val src = Source.fromFile(file)
     val data = src.getLines.toList
     src.close
-    if (isEdifactPaymulPaymentData(data))
+    if (isEdifactPaymulPaymentData(data)){
+      logger.debug(s"Processing payment file ${file.getName()} as PAYMUL")
       PaymentEdifactProcessor.extractPaymentOrdersFromPAYMULString(data).get
+    }
     else if (isJsonPaymentData(data)) {
+      logger.debug(s"Processing payment file ${file.getName()} as JSON")
       implicit val formats = net.liftweb.json.DefaultFormats ++
         List(new TransformationUtil.MyDateTimeSerializer(TransformationUtil.DT_FORMAT_CCYYMMDD),
           new TransformationUtil.MyJodaCurrencyUnitSerializer,
           new TransformationUtil.MyBigDecimalSerializer)
-      PaymentJsonProcessor.extractPaymentOrderListFromJson(data).get
-    } else
+      PaymentJsonProcessor.extractPaymentOrderListFromJson(data)(formats).get
+    } else{
+      logger.debug(s"Payment file ${file.getName()} is in Alien Format")
       Nil
+    }
+      
   }
-
 
 
   def isEdifactPaymulPaymentData(data: List[String]): Boolean = data match {
