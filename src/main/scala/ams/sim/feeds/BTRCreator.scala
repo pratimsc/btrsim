@@ -1,7 +1,6 @@
 package ams.sim.feeds
 
 import java.io.File
-
 import scala.collection.immutable.HashMap
 import scala.collection.mutable.StringBuilder
 import scala.io.Codec
@@ -10,7 +9,6 @@ import scala.math.BigDecimal.int2bigDecimal
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
-
 import org.joda.time.DateTime
 import org.maikalal.ams.sim.balances.AccountBalance
 import org.maikalal.ams.sim.balances.AccountLedger
@@ -21,12 +19,11 @@ import org.maikalal.ams.sim.payments.Money
 import org.maikalal.ams.sim.payments.PaymentProcessor
 import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
 import org.maikalal.ams.sim.utils.TransformationUtil
-
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.slf4j.Logging
-
 import net.liftweb.json.DefaultFormats
 import net.liftweb.json.Serialization.writePretty
+import org.maikalal.ams.sim.payments.UKAccountNumber
 
 object BTRCreator extends Logging {
 
@@ -103,12 +100,22 @@ object BTRCreator extends Logging {
 
     logger.info(s"""Target Batch processing Date is [${TransformationUtil.getDateInFormat(targetBatchDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}]""")
 
-    val paymentTransactionsToConsider = paymentTransactions.filter(tr => tr.transacionDate.getMillis() <= targetBatchDate.getMillis())
+    /*
+     * Convert the sort code "20000" in the Account numbers to sort code "200018", in the list of Transactions
+     * This should be converted for only those Accounts/Transactions for which an entry in the ledger exist. 
+     * This conversion is aided to support DirectData's usage of sort code 200018 instead of the valid sort code 200000.
+     * This transformed list has to be used for Balance processing
+     */
+    val paymentTransactionsTransformed = paymentTransactions ++
+      paymentTransactions.filter(tr => tr.accountNumber.sortCode == "200000")
+      .map(tr => tr.copy(accountNumber = new UKAccountNumber("200018", tr.accountNumber.accountNumber)))
+
+    val paymentTransactionsToConsider = paymentTransactionsTransformed.filter(tr => tr.transacionDate.getMillis() <= targetBatchDate.getMillis())
     logger.info(s"""The [${paymentTransactionsToConsider.length}] number of Transactions are considers for processing as they are either less than of equal to batch processing date [${TransformationUtil.getDateInFormat(targetBatchDate, TransformationUtil.DT_FORMAT_CCYYMMDD)}] .""")
 
     val accountLedgersFromPaymentFiles = BalanceProcessor.generateAccountBalancePerDate(paymentTransactionsToConsider)
     val accountLedgersFromPaymentFilesMap = accountLedgersFromPaymentFiles.groupBy(_.account)
-    logger.info(s"""Generated reference map for previos day's balance""")
+    logger.info(s"""Generated reference map for previous day's balance""")
     logger.debug("Following Payment Account Ledgers will be used for creating the Direct Data feeds.")
     logger.debug("_______________________________________________________________________")
     accountLedgersFromPaymentFiles.foreach(a => logger.debug(writePretty(a)))
@@ -231,7 +238,6 @@ object BTRCreator extends Logging {
       false
   }
 
-
   /**
    * Helper function to write to a file
    */
@@ -314,7 +320,7 @@ object BTRCreator extends Logging {
     t.append("%013.0f".format(totalValueOfCreditItems.abs))
     t.append("%07d".format(countOfDebitEntries))
     t.append("%07d".format(countOfCreditEntries))
-    t.append("%08d".format(dataRecordCount+2))
+    t.append("%08d".format(dataRecordCount + 2))
     t.append(TransformationUtil.fillWithCharacter(42, ' '))
     t.toString
   }
@@ -340,7 +346,7 @@ object BTRCreator extends Logging {
     t.append(TransformationUtil.fillWithCharacter(13, 0x30))
     t.append("%07d".format(countOfDebitEntries))
     t.append("%07d".format(countOfCreditEntries))
-    t.append("%08d".format(dataRecordCount+2))
+    t.append("%08d".format(dataRecordCount + 2))
     t.append("%017.0f".format(totalValueOfDebitItems))
     t.append("%017.0f".format(totalValueOfCreditItems))
     t.append(TransformationUtil.fillWithCharacter(208, 0x20))
@@ -427,7 +433,7 @@ object BTRCreator extends Logging {
   def generateCurrencyAccountingEntryForFormat300(transaction: AccountTransaction): String = {
     val accountType = '1'
     val entryType = '2' // 1 -> Terminal entry, 2 -> Automated entry 
-    val chequeNumber = "0000000" //If the item is cheque, the serial number, preceded by a 0. Otherwise zero-filled
+    val chequeNumber = TransformationUtil.fillWithCharacter(6, 0x30) //If the item is cheque, the serial number, preceded by a 0. Otherwise zero-filled
 
     val strBldr = new StringBuilder(transaction.accountNumber.fullAccountNumber)
     strBldr.append(accountType)
@@ -435,7 +441,7 @@ object BTRCreator extends Logging {
     strBldr.append(TransformationUtil.fillWithCharacter(6 + 8, 0x20))
     strBldr.append(TransformationUtil.fillWithCharacter(4 + 11, 0x30))
     strBldr.append(TransformationUtil.fillWithCharacter(18 + 18 + 18, 0x20))
-    strBldr.append(0x20 + TransformationUtil.getDateInFormat(transaction.transacionDate, TransformationUtil.DT_FORMAT_YYDDD).get)
+    strBldr.append(0x20.toChar + TransformationUtil.getDateInFormat(transaction.transacionDate, TransformationUtil.DT_FORMAT_YYDDD).get)
     strBldr.append(TransformationUtil.fillWithCharacter(1 + 6 + 8, 0x30))
     strBldr.append(if (transaction.isDebitTransaction) "T293" else "T292")
     strBldr.append(transaction.transactionValue.currencyCode.getCurrencyCode())
