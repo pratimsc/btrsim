@@ -409,16 +409,7 @@ object BTRCreator extends Logging {
     strBldr.append(TransformationUtil.leftJustfiedFormattedString(transaction.transactionReferenceNumber, 4))
     //Amount is of size 11, in minor currency and 0 precision
     strBldr.append("%011.0f".format(transaction.transactionValue.amountInMinorCurrency.abs))
-
-    val narrative = (transaction.narrative1, transaction.narrative2) match {
-      case (TransformationUtil.EMPTY_VALUE_STRING, narr) if !narr.isEmpty() =>
-        TransformationUtil.rightJustfiedFormattedString(TransformationUtil.leftJustfiedFormattedString(narr, 18, false), 36)
-      case (narr, TransformationUtil.EMPTY_VALUE_STRING) if !narr.isEmpty() =>
-        TransformationUtil.leftJustfiedFormattedString(narr, 36)
-      case (narr1, narr2) =>
-        TransformationUtil.leftJustfiedFormattedString(narr1.trim + narr2.trim(), 36, true, 0x20)
-    }
-    strBldr.append(narrative)
+    strBldr.append(TransformationUtil.leftJustfiedFormattedString(transaction.narrative, 36, true))
     strBldr.append(entryType)
     strBldr.append(chequeNumber)
     strBldr.append(TransformationUtil.getDateInFormat(transaction.transacionDate, TransformationUtil.DT_FORMAT_DDMMYY).get)
@@ -450,10 +441,12 @@ object BTRCreator extends Logging {
     strBldr.append(chequeNumber)
     strBldr.append("%015.0f".format(transaction.transactionValue.amountInMinorCurrency.abs))
     strBldr.append(TransformationUtil.fillWithCharacter(2, 0x20))
-    strBldr.append(2) //Only Two narratives will be added
-    strBldr.append(TransformationUtil.leftJustfiedFormattedString(transaction.narrative1, 22))
-    strBldr.append(TransformationUtil.leftJustfiedFormattedString(transaction.narrative2, 22))
-    strBldr.append(TransformationUtil.fillWithCharacter(22 + 22 + 22, 0x20))
+    strBldr.append({
+      val size = (transaction.narrative.size / 22) + 1 //Size of each narrative block is 22 char
+      if (size > 5) 5 else size
+    }) //Normally only 2 blocks of Narratives will be added, but it will never be more than 5
+
+    strBldr.append(TransformationUtil.leftJustfiedFormattedString(transaction.narrative, 22 * 5, true))
     strBldr.toString()
   }
 
