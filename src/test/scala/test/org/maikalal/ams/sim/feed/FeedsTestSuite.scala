@@ -1,33 +1,25 @@
 package test.org.maikalal.ams.sim.feed
 
-import org.joda.time.DateTime
+import java.io.File
+import scala.collection.immutable.HashMap
+import scala.io.Codec
+import scala.math.BigDecimal.int2bigDecimal
+import org.joda.money.CurrencyUnit
 import org.junit.runner.RunWith
-import org.maikalal.ams.sim.feeds.BTRCreator
+import org.maikalal.ams.sim.balances.AccountBalance
+import org.maikalal.ams.sim.balances.AccountLedger
 import org.maikalal.ams.sim.payments.AccountTransaction
-import org.maikalal.ams.sim.payments.AccountTransaction
+import org.maikalal.ams.sim.payments.Money
 import org.maikalal.ams.sim.payments.UKAccountNumber
 import org.maikalal.ams.sim.utils.TransformationUtil
 import org.scalatest.FunSuite
-import org.scalatest.junit.JUnitRunner
 import com.typesafe.config.ConfigFactory
-import org.maikalal.ams.sim.payments.Money
-import org.joda.money.CurrencyUnit
-import org.maikalal.ams.sim.balances.AccountLedger
-import org.maikalal.ams.sim.balances.AccountBalance
-import scala.collection.immutable.HashMap
-import org.maikalal.ams.sim.feeds.BTRReader
-import java.io.File
-import scala.io.Codec
-import scala.io.Source
-import net.liftweb.json.Serialization._
+import ams.sim.feeds.BTRCreator
+import ams.sim.feeds.BTRFeed
+import ams.sim.feeds.BTRReader
+import ams.sim.feeds.BTRSterlingFeed
 import net.liftweb.json.DefaultFormats
-import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
-import org.maikalal.ams.sim.payments.PaymentProcessor
-import org.maikalal.ams.sim.balances.BalanceProcessor
-import scala.util.Success
-import scala.util.Failure
-import org.maikalal.ams.sim.feeds.BTRFeed
-import org.maikalal.ams.sim.feeds.BTRSterlingFeed
+import org.scalatest.junit.JUnitRunner
 
 @RunWith(classOf[JUnitRunner])
 class FeedsTestSuite extends FunSuite {
@@ -69,8 +61,7 @@ class FeedsTestSuite extends FunSuite {
       transactionCode = "82",
       tlaCode = "0",
       transactionReferenceNumber = "0000",
-      narrative1 = "IW000211561",
-      narrative2 = "")
+      narrative = "IW000211561")
     val formattedTr = BTRCreator.generateSterlingAccountingEntryForFormat100(tr)
     assert(refTranString == formattedTr)
   }
@@ -87,8 +78,7 @@ class FeedsTestSuite extends FunSuite {
       transactionCode = "82",
       tlaCode = "0",
       transactionReferenceNumber = "0000",
-      narrative1 = "IW000211561",
-      narrative2 = "")
+      narrative = "IW000211561")
     val tr2 = new AccountTransaction(accountNumber = new UKAccountNumber("200085", "83753735"),
       originatingAccountNumber = new UKAccountNumber("200085", "63512762"),
       transactionValue = Money(BigDecimal(12), CurrencyUnit.GBP),
@@ -96,8 +86,7 @@ class FeedsTestSuite extends FunSuite {
       transactionCode = "85",
       tlaCode = "8",
       transactionReferenceNumber = "0000",
-      narrative1 = "",
-      narrative2 = "IC000211561")
+      narrative = "                  IC000211561")
 
     val balances: Map[String, AccountBalance] = HashMap(
       AccountBalance.BALANCE_TYPE_DAILY -> AccountBalance(AccountBalance.BALANCE_TYPE_DAILY, Money(10, CurrencyUnit.GBP)),
@@ -112,7 +101,6 @@ class FeedsTestSuite extends FunSuite {
     assert(refAccLdgr == formattedAccLdgr)
   }
 
-  
   test("Test6 - Check wether Account Ledger information is correctly extracted from Sterling Feed ") {
     implicit val directDataFeedCodec = Codec.UTF8
     val file = new File("""C:\data\code\eclipse\20130412\AMSSimulator\src\test\resources\feeds\GBP_DC1_20131108""")
@@ -130,11 +118,11 @@ class FeedsTestSuite extends FunSuite {
         AccountBalance.BALANCE_TYPE_EOD -> AccountBalance(AccountBalance.BALANCE_TYPE_EOD, Money(79, CurrencyUnit.GBP))),
       transactions = List())
 
-    val accLdgrL = BTRReader.extractPreviousEODBalanceFromFile(BTRFeed(file,BTRSterlingFeed))
+    val accLdgrL = BTRReader.extractPreviousEODBalanceFromFile(BTRFeed(file, BTRSterlingFeed))
 
     assert(accLdgrL.isSuccess)
     assert(accLdgrL.get.size == 2)
     assert(List(accLdgr1, accLdgr2) == accLdgrL.get)
   }
-  
+
 }
