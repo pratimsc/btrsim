@@ -2,6 +2,7 @@ package org.maikalal.ams.sim.payments
 
 import org.joda.time.DateTime
 import org.joda.money.CurrencyUnit
+import org.maikalal.ams.sim.utils.TransformationUtil
 
 /**
  * Account Class
@@ -50,7 +51,9 @@ case class PaymentInstruction(
   val originatorReferenceNumberAEK: Option[String],
   val beneficiaryReferenceNumberCR: Option[String],
   val monetaryAmount: Money,
-  val paymentDate: DateTime)
+  val paymentDate: DateTime,
+  val paymentMode: Option[Int] = Some(TransformationUtil.PaymentMode.UNIDENTIFIED),
+  val paymentChannel: Option[Int] = None)
 
 case class PaymentOrder(val originatorAccountNumber: UKAccountNumber,
   val originatorReferenceNumberAEK: Option[String],
@@ -66,13 +69,14 @@ case class AccountTransaction(
   val transactionCode: String,
   val tlaCode: String,
   val transactionReferenceNumber: String,
-  val narrative1: String,
-  val narrative2: String) {
+  val narrative: String) {
 
   def isCreditTransaction: Boolean = {
     transactionCode match {
       case "84" => true
       case "85" => true
+      case "81" => false
+      case "82" => false
       case _ => false
     }
   }
