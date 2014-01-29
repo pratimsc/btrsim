@@ -76,6 +76,15 @@ object BTRCreator extends Logging {
     logger.info(s"""Reading all payment order from Payment files from location [${DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL}""")
     val paymentOrdersExternal = PaymentFilesProcessor.extractPaymentOrders(DF_PREVIOUS_ACC_DATE_PAYMENT_FOLDER_EXTERNAL)(paymentFileCodec)
     logger.info("Generating simulated transaction pairs for all processed payment orders.")
+    logger.debug("_______________________________________________________________________")
+    logger.debug("Below Internal Payment Orders are being processed")
+    paymentOrdersInternal.foreach(a => logger.debug(writePretty(a)))
+    logger.debug("_______________________________________________________________________")
+    logger.debug("_______________________________________________________________________")
+    logger.debug("Below External Payment Orders are being processed")
+    paymentOrdersExternal.foreach(a => logger.debug(writePretty(a)))
+    logger.debug("_______________________________________________________________________")
+
     val paymentTransactions = PaymentProcessor.generateTransactionPairs(paymentOrdersInternal ::: paymentOrdersExternal)
     logger.info(s"""The [${paymentTransactions.length}] number of Transaction pairs are generated based on payment files provided.""")
 
@@ -93,7 +102,7 @@ object BTRCreator extends Logging {
             paymentDate
           case None =>
             val defaultDate = DateTime.now()
-            logger.info(s"""Using present system date as default date "${TransformationUtil.getDateInFormat(defaultDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}"""")
+            logger.warn(s"""Using present system date as default date "${TransformationUtil.getDateInFormat(defaultDate, TransformationUtil.DT_FORMAT_CCYYMMDD).get}"""")
             defaultDate
         }
     }
