@@ -10,8 +10,7 @@ import scala.util.Try
 
 import org.joda.money.CurrencyUnit
 import org.maikalal.ams.sim.balances.AccountBalance
-import org.maikalal.ams.sim.balances.AccountBalance.BALANCE_TYPE_EOD
-import org.maikalal.ams.sim.balances.AccountBalance.BALANCE_TYPE_PREV_EOD
+import org.maikalal.ams.sim.balances.AccountBalance._
 import org.maikalal.ams.sim.balances.AccountLedger
 import org.maikalal.ams.sim.payments.AccountNumber
 import org.maikalal.ams.sim.payments.Money
@@ -88,7 +87,7 @@ object BTRReader extends Logging {
    * Converts a Currency Balance block to Account Ledger
    * There will be 2 trailer records - One for Credit balance and other for Debit balance
    * Sum of these 2 balances provides the EOD balance for previous day. 
-   * The SOLD supplied Account Ledger balance is absent in the feeds. Hence, todal balance 
+   * The SOLD supplied Account Ledger balance is absent in the feeds. Hence, total balance 
    * Information is absent in the data.
    */
   def convertCurrencyBalanceRecordToAccountLedger(acc: AccountNumber, data: List[String]): AccountLedger = {
