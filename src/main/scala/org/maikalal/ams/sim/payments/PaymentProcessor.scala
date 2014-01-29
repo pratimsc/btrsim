@@ -36,7 +36,7 @@ object PaymentProcessor {
         transactionCode = "82",
         tlaCode = generateTlaCodeForDebit(pi.paymentMode.getOrElse(0)),
         transactionReferenceNumber = transactionReferenceNumber,
-        narrative = generateNarrativeForDebit(pi.beneficiaryReferenceNumberCR.getOrElse("NOBENREFCR"), pi.paymentMode))
+        narrative = generateNarrativeForDebit(pi.beneficiaryReferenceNumberCR.getOrElse("NOBENREFCR"), pi.paymentChannel))
 
       //Create a transaction for the Payment beneficiary account
       val beneficiaryCRTransaction = new AccountTransaction(
@@ -48,7 +48,7 @@ object PaymentProcessor {
         transactionCode = "85",
         tlaCode = generateTlaCodeForCredit(pi.paymentMode.getOrElse(0)),
         transactionReferenceNumber = transactionReferenceNumber,
-        narrative = generateNarrativeForCredit(pi.beneficiaryReferenceNumberCR.getOrElse("NOBENREFCR"), pi.paymentMode))
+        narrative = generateNarrativeForCredit(pi.beneficiaryReferenceNumberCR.getOrElse("NOBENREFCR"), pi.paymentChannel))
       List(beneficiaryCRTransaction, originatorDRTransaction)
     }
     transactions
@@ -72,13 +72,13 @@ object PaymentProcessor {
     case _ => "0"
   }
 
-  def generateNarrativeForCredit(nar: String, paymentMode: Option[Int]) = paymentMode match {
-    case Some(TransformationUtil.PaymentMode.IAT) => "FTRF" + nar.trim + "*"
+  def generateNarrativeForCredit(nar: String, paymentChannel: Option[Int]) = paymentChannel match {
+    case Some(TransformationUtil.PaymentChannel.BFA_PROCESSED) => "FTRF" + nar.trim + "*"
     case _ => nar.trim()
   }
 
-  def generateNarrativeForDebit(nar: String, paymentMode: Option[Int]) = paymentMode match {
-    case Some(TransformationUtil.PaymentMode.IAT) => "FTRF" + nar.trim
+  def generateNarrativeForDebit(nar: String, paymentChannel: Option[Int]) = paymentChannel match {
+    case Some(TransformationUtil.PaymentChannel.BFA_PROCESSED) => "FTRF" + nar.trim
     case _ => nar.trim()
   }
 }
