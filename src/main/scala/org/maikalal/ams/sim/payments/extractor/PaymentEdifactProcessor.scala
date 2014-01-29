@@ -11,7 +11,6 @@ import org.maikalal.ams.sim.payments.PaymentOrder
 import org.maikalal.ams.sim.payments.UKAccountNumber
 import org.maikalal.ams.sim.utils.TransformationUtil
 
-
 object PaymentEdifactProcessor {
 
   /*
@@ -21,167 +20,187 @@ object PaymentEdifactProcessor {
    * There is another function that deals with processing of payment files in JSON format. 
    * However, that should be primarily used for simulating payments generated outside the AMS.
    */
-  def extractPaymentOrdersFromPAYMULString(paymentFileLines: List[String]): Try[List[PaymentOrder]] = {
-    Try {
-      //Start the BIG loop to create the list of Payment orders and payments.
-      /**
-       * Massive opportunity to improve the design/code here.
-       * <<To DO>>
-       */
+  def extractPaymentOrdersFromPAYMULString(data: List[String]): Try[List[PaymentOrder]] = Try {
+    //Start the BIG loop to create the list of Payment orders and payments.
+    /**
+     * Massive opportunity to improve the design/code here.
+     * <<To DO>>
+     */
 
-      //Note : To be improved later
-      var isPaymentOrderBeingConstructed = false
-      var isPaymentBeingConstructed = false
-      val paymentOrdersL: ListBuffer[PaymentOrder] = new ListBuffer
+    //Note : To be improved later
+    var isPaymentOrderBeingConstructed = false
+    var isPaymentBeingConstructed = false
+    val paymentOrdersL: ListBuffer[PaymentOrder] = new ListBuffer
 
-      /*
+    /*
      * Below the variables are declared. 
      */
-      //var orderingPartyName: String = null
-      val DEFAULT_PAYMENT_EXECUTION_DATE = TransformationUtil.getDateInFormat(TransformationUtil.DEFAULT_END_DATE, TransformationUtil.DT_FORMAT_CCYYMMDD).get
-      var paymentOrderExecutionDateTime: String = DEFAULT_PAYMENT_EXECUTION_DATE
-      var originatorReferenceNumberAEK: String = null
-      var originatorAccountNumber: UKAccountNumber = null
-      var paymentInstructions: ListBuffer[PaymentInstruction] = new ListBuffer
+    //var orderingPartyName: String = null
+    val DEFAULT_PAYMENT_EXECUTION_DATE = TransformationUtil.getDateInFormat(TransformationUtil.DEFAULT_END_DATE, TransformationUtil.DT_FORMAT_CCYYMMDD).get
+    var paymentOrderExecutionDateTime: String = DEFAULT_PAYMENT_EXECUTION_DATE
+    var originatorReferenceNumberAEK: String = null
+    var originatorAccountNumber: UKAccountNumber = null
+    var paymentInstructions: ListBuffer[PaymentInstruction] = new ListBuffer
 
-      /*
+    /*
      * Below are the variables for Individual payments
      */
-      var beneficiaryMoney: Money = null
-      var beneficiaryReferenceNumberCR: String = null
-      var beneficiaryAccountNumber: UKAccountNumber = null
+    var beneficiaryMoney: Money = null
+    var beneficiaryReferenceNumberCR: String = null
+    var beneficiaryAccountNumber: UKAccountNumber = null
+    var modeOfPayment: Option[Int] = None
 
-      for (rec <- paymentFileLines) {
+    /*
+       * All the records in EDIFACT is delimited by character "'"
+       * Hence, split then so that each record forms a new line 
+       * and then LOOP through each record. 
+       */
+    val paymentFileLines = data.flatMap(_.split("\'"))
+    for (rec <- paymentFileLines) {
 
-        edifactTagBelongingToTheRecord(rec) match {
-          case "LIN" =>
-            /*
+      edifactTagBelongingToTheRecord(rec) match {
+        case "LIN" =>
+          /*
        * Here the Payment order creation for previous has to be finished
        * LIN+1++1932325STILESHARO
        */
 
-            if (isPaymentOrderBeingConstructed) {
-              //Check whether from Payment instruction has been added or not
-              if (isPaymentBeingConstructed) {
-                val payInst = new PaymentInstruction(
-                  beneficiaryAccountNumber = beneficiaryAccountNumber,
-                  originatorReferenceNumberAEK = Some(originatorReferenceNumberAEK),
-                  beneficiaryReferenceNumberCR = Some(beneficiaryReferenceNumberCR),
-                  monetaryAmount = beneficiaryMoney,
-                  paymentDate = TransformationUtil.getDateTime(paymentOrderExecutionDateTime, TransformationUtil.DT_FORMAT_CCYYMMDD).get)
-
-                paymentInstructions.append(payInst)
-              }
-
-              //Write a code to finish the completion of the Payment Order here           
-              val paymentOrder = new PaymentOrder(originatorAccountNumber,
-                Some(originatorReferenceNumberAEK),
-                paymentInstructions.toList)
-              paymentOrdersL.append(paymentOrder)
-            }
-
-            //Initialize all values relayted to Payment Order
-            paymentOrderExecutionDateTime = DEFAULT_PAYMENT_EXECUTION_DATE
-            originatorReferenceNumberAEK = null
-            originatorAccountNumber = null
-            paymentInstructions = new ListBuffer
-            isPaymentOrderBeingConstructed = true
-            isPaymentBeingConstructed = false
-
-          case "DTM+203" =>
-            //DTM+203:20130325:102
-            paymentOrderExecutionDateTime = rec.split("\\+").toList.last.split("\\:").toList.tail.head
-
-          case "RFF+AEK" =>
-            //RFF+AEK:I13032500000001
-            originatorReferenceNumberAEK = rec.split("\\+").last.split("\\:").toList.last
-
-          case "MOA" =>
-            //MOA+9:0.00:GBP
-            val moneyList = rec.split("\\+").toList.last.split("\\:").toList
-            val money = new Money(getAmountInMinorCurrency(moneyList.tail.head), CurrencyUnit.getInstance(moneyList.tail.last.toUpperCase()))
-
-            //Check whether the money belong to Payment Order or Instruction
-            if (isPaymentBeingConstructed)
-              beneficiaryMoney = money
-
-          case "FII+OR" =>
-            val fiiOrL = rec.split("\\+").toArray
-            val accountNumberA = fiiOrL(2).split("\\:").toArray
-            val sortCodeA = fiiOrL(3).split("\\:").toArray
-            val brCode = if (sortCodeA(0).isEmpty() && !sortCodeA(3).isEmpty()) sortCodeA(3) else sortCodeA(0)
-            val sortCode = if (sortCodeA(0).length() <= 6) brCode else brCode.substring(brCode.length() - 6)
-            val accNum = if (accountNumberA(0).length() <= 8) accountNumberA(0) else accountNumberA(0).substring(accountNumberA(0).length() - 8)
-            originatorAccountNumber = new UKAccountNumber(sortCode, accNum)
-
-          case "SEQ" =>
-            //SEQ++0001
+          if (isPaymentOrderBeingConstructed) {
+            //Check whether from Payment instruction has been added or not
             if (isPaymentBeingConstructed) {
               val payInst = new PaymentInstruction(
                 beneficiaryAccountNumber = beneficiaryAccountNumber,
                 originatorReferenceNumberAEK = Some(originatorReferenceNumberAEK),
                 beneficiaryReferenceNumberCR = Some(beneficiaryReferenceNumberCR),
                 monetaryAmount = beneficiaryMoney,
-                paymentDate = TransformationUtil.getDateTime(paymentOrderExecutionDateTime, TransformationUtil.DT_FORMAT_CCYYMMDD).get)
+                paymentDate = TransformationUtil.getDateTime(paymentOrderExecutionDateTime, TransformationUtil.DT_FORMAT_CCYYMMDD).get,
+                paymentMode = modeOfPayment,
+                paymentChannel = Some(TransformationUtil.PaymentChannel.BFA_PROCESSED))
 
               paymentInstructions.append(payInst)
             }
 
-            //Initialize all values related to Paymet Instruction
-            beneficiaryMoney = null
-            beneficiaryReferenceNumberCR = null
-            beneficiaryAccountNumber = null
-            isPaymentBeingConstructed = true
+            //Write a code to finish the completion of the Payment Order here           
+            val paymentOrder = new PaymentOrder(originatorAccountNumber,
+              Some(originatorReferenceNumberAEK),
+              paymentInstructions.toList)
+            paymentOrdersL.append(paymentOrder)
+          }
 
-          case "RFF+CR" =>
-            //RFF+CR:IW000204361
-            beneficiaryReferenceNumberCR = rec.split("\\+").tail.head.split("\\:").last
+          //Initialize all values relayted to Payment Order
+          paymentOrderExecutionDateTime = DEFAULT_PAYMENT_EXECUTION_DATE
+          originatorReferenceNumberAEK = null
+          originatorAccountNumber = null
+          paymentInstructions = new ListBuffer
+          isPaymentOrderBeingConstructed = true
+          isPaymentBeingConstructed = false
 
-          case "FII+BF" =>
-            //FII+BF+63193926:STILES HAROLD WILLIAMS LLP+:::201275:154:133
-            val fiiBfL = rec.split("\\+").toArray
-            val sortCodeA = fiiBfL(3).split("\\:").toArray
-            val accountNumberA = fiiBfL(2).split("\\:").toArray
-            val brCode = if (sortCodeA(0).isEmpty() && !sortCodeA(3).isEmpty()) sortCodeA(3) else sortCodeA(0)
-            val sortCode = if (sortCodeA(0).length() <= 6) brCode else brCode.substring(brCode.length() - 6)
-            val accNum = if (accountNumberA(0).length() <= 8) accountNumberA(0) else accountNumberA(0).substring(accountNumberA(0).length() - 8)
-            beneficiaryAccountNumber = new UKAccountNumber(sortCode, accNum)
+        case "DTM+203" =>
+          //DTM+203:20130325:102
+          paymentOrderExecutionDateTime = rec.split("\\+").toList.last.split("\\:").toList.tail.head
 
-          case "NAD+OY" =>
-          //NAD+OY+0000:160:ZZZ++STILES HAROLD WILLIAMS LLP+++++GB
+        case "RFF+AEK" =>
+          //RFF+AEK:I13032500000001
+          originatorReferenceNumberAEK = rec.split("\\+").last.split("\\:").toList.last
 
-          case "NAD+BE" =>
-          //NAD+BE+STILES HAROLD WILLIAMS LLP:160:ZZZ++STILES HAROLD WILLIAMS LLP+++++GB
+        case "MOA" =>
+          //MOA+9:0.00:GBP
+          val moneyList = rec.split("\\+").toList.last.split("\\:").toList
+          val money = new Money(getAmountInMinorCurrency(moneyList.tail.head), CurrencyUnit.getInstance(moneyList.tail.last.toUpperCase()))
 
-          case _ =>
-          //println("This record could not be parsed and is not used for processing :\t" + rec + " Contributing tag" + edifactTagBelongingToTheRecord(rec))
-        }
+          //Check whether the money belong to Payment Order or Instruction
+          if (isPaymentBeingConstructed)
+            beneficiaryMoney = money
 
+        case "FII+OR" =>
+          val fiiOrL = rec.split("\\+").toArray
+          val accountNumberA = fiiOrL(2).split("\\:").toArray
+          val sortCodeA = fiiOrL(3).split("\\:").toArray
+          val brCode = if (sortCodeA(0).isEmpty() && !sortCodeA(3).isEmpty()) sortCodeA(3) else sortCodeA(0)
+          val sortCode = if (sortCodeA(0).length() <= 6) brCode else brCode.substring(brCode.length() - 6)
+          val accNum = if (accountNumberA(0).length() <= 8) accountNumberA(0) else accountNumberA(0).substring(accountNumberA(0).length() - 8)
+          originatorAccountNumber = new UKAccountNumber(sortCode, accNum)
+
+        case "SEQ" =>
+          //SEQ++0001
+          if (isPaymentBeingConstructed) {
+            val payInst = new PaymentInstruction(
+              beneficiaryAccountNumber = beneficiaryAccountNumber,
+              originatorReferenceNumberAEK = Some(originatorReferenceNumberAEK),
+              beneficiaryReferenceNumberCR = Some(beneficiaryReferenceNumberCR),
+              monetaryAmount = beneficiaryMoney,
+              paymentDate = TransformationUtil.getDateTime(paymentOrderExecutionDateTime, TransformationUtil.DT_FORMAT_CCYYMMDD).get,
+              paymentMode = modeOfPayment,
+              paymentChannel = Some(TransformationUtil.PaymentChannel.BFA_PROCESSED))
+
+            paymentInstructions.append(payInst)
+          }
+
+          //Initialize all values related to Payment Instruction
+          beneficiaryMoney = null
+          beneficiaryReferenceNumberCR = null
+          beneficiaryAccountNumber = null
+          modeOfPayment = None
+          isPaymentBeingConstructed = true
+
+        case "RFF+CR" =>
+          //RFF+CR:IW000204361
+          beneficiaryReferenceNumberCR = rec.split("\\+").tail.head.split("\\:").last
+
+        case "PAI" =>
+          //This one hold information on mode of payment i.e. Time critical or cost critical
+          modeOfPayment = rec.split(":").reverse.head match {
+            case "B01" => Some(TransformationUtil.PaymentMode.CHAPS)
+            case "B02" => Some(TransformationUtil.PaymentMode.IAT)
+            case _ => Some(TransformationUtil.PaymentMode.UNIDENTIFIED)
+          }
+
+        case "FII+BF" =>
+          //FII+BF+63193926:STILES HAROLD WILLIAMS LLP+:::201275:154:133
+          val fiiBfL = rec.split("\\+").toArray
+          val sortCodeA = fiiBfL(3).split("\\:").toArray
+          val accountNumberA = fiiBfL(2).split("\\:").toArray
+          val brCode = if (sortCodeA(0).isEmpty() && !sortCodeA(3).isEmpty()) sortCodeA(3) else sortCodeA(0)
+          val sortCode = if (sortCodeA(0).length() <= 6) brCode else brCode.substring(brCode.length() - 6)
+          val accNum = if (accountNumberA(0).length() <= 8) accountNumberA(0) else accountNumberA(0).substring(accountNumberA(0).length() - 8)
+          beneficiaryAccountNumber = new UKAccountNumber(sortCode, accNum)
+
+        case "NAD+OY" =>
+        //NAD+OY+0000:160:ZZZ++STILES HAROLD WILLIAMS LLP+++++GB
+
+        case "NAD+BE" =>
+        //NAD+BE+STILES HAROLD WILLIAMS LLP:160:ZZZ++STILES HAROLD WILLIAMS LLP+++++GB
+
+        case _ =>
+        //println("This record could not be parsed and is not used for processing :\t" + rec + " Contributing tag" + edifactTagBelongingToTheRecord(rec))
       }
-      /*
+
+    }
+    /*
      * Check whether some payment order and payment instruction needs completing. 
      */
-      if (isPaymentOrderBeingConstructed) {
-        //Check whether from Payment instruction has been added or not
-        if (isPaymentBeingConstructed) {
-          val payInst = new PaymentInstruction(
-            beneficiaryAccountNumber = beneficiaryAccountNumber,
-            originatorReferenceNumberAEK = Some(originatorReferenceNumberAEK),
-            beneficiaryReferenceNumberCR = Some(beneficiaryReferenceNumberCR),
-            monetaryAmount = beneficiaryMoney,
-            paymentDate = TransformationUtil.getDateTime(paymentOrderExecutionDateTime, TransformationUtil.DT_FORMAT_CCYYMMDD).get)
+    if (isPaymentOrderBeingConstructed) {
+      //Check whether from Payment instruction has been added or not
+      if (isPaymentBeingConstructed) {
+        val payInst = new PaymentInstruction(
+          beneficiaryAccountNumber = beneficiaryAccountNumber,
+          originatorReferenceNumberAEK = Some(originatorReferenceNumberAEK),
+          beneficiaryReferenceNumberCR = Some(beneficiaryReferenceNumberCR),
+          monetaryAmount = beneficiaryMoney,
+          paymentDate = TransformationUtil.getDateTime(paymentOrderExecutionDateTime, TransformationUtil.DT_FORMAT_CCYYMMDD).get,
+          paymentMode = modeOfPayment,
+          paymentChannel = Some(TransformationUtil.PaymentChannel.BFA_PROCESSED))
 
-          paymentInstructions.append(payInst)
-        }
-        //Write a code to finish the completion of the Payment Order here
-        val paymentOrder = new PaymentOrder(originatorAccountNumber,
-          Some(originatorReferenceNumberAEK),
-          paymentInstructions.toList)
-        paymentOrdersL.append(paymentOrder)
+        paymentInstructions.append(payInst)
       }
-
-      paymentOrdersL.toList
+      //Write a code to finish the completion of the Payment Order here
+      val paymentOrder = new PaymentOrder(originatorAccountNumber,
+        Some(originatorReferenceNumberAEK),
+        paymentInstructions.toList)
+      paymentOrdersL.append(paymentOrder)
     }
+
+    paymentOrdersL.toList
   }
 
   private def doesItContributeToPaymentRecord(recordLine: String): Boolean = {
