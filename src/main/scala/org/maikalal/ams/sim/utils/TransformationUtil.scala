@@ -95,4 +95,16 @@ object TransformationUtil {
       case v: BigDecimal => JDouble(v.doubleValue)
     }))
 
+  case object PaymentMode {
+    val UNIDENTIFIED = 0
+    val IAT = 1
+    val BACS = 2
+    val CHAPS = 3
+    val FASTER_PAYMENT = 4
+    val CROSS_BORDER = 5
+  }
+  case object PaymentChannel {
+    val UNIDENTIFIED = 0
+    val BFA_PROCESSED = 1
+  }
 }
