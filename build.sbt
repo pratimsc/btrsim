@@ -1,6 +1,10 @@
+import AssemblyKeys._ // put this at the top of the file
+
+assemblySettings 
+
 name := "AMSSimulator"
 
-version := "0.1.0"
+version := "0.2.5"
 
 scalaVersion := "2.10.3"
 
@@ -16,12 +20,6 @@ libraryDependencies ++={
 	val junitVersion = "4.11"
 	val scalaTestVersion = "2.0"
 	 Seq(
-		"io.spray" 				%  	"spray-can" 		% sprayVersion withSources(),
-		"io.spray" 				%  	"spray-http" 		% sprayVersion withSources(),
-		"io.spray" 				%  	"spray-routing" 	% sprayVersion withSources(),
-		"com.typesafe.akka"		%%	"akka-actor" 		% akkaVersion withSources(),
-		"com.typesafe.akka" 	%% 	"akka-slf4j" 		% akkaVersion withSources(),
-		"com.typesafe.slick" 	%% 	"slick"				% slickVersion withSources(),
 		"net.liftweb" 			%%  "lift-json"			% liftVersion withSources(),
 		"net.liftweb" 			%%  "lift-json-ext"		% liftVersion withSources(),
 		"ch.qos.logback"		%  	"logback-classic"	% logbackVersion withSources(),
@@ -30,10 +28,17 @@ libraryDependencies ++={
 		"org.joda" 				% 	"joda-money" 		% "0.9" withSources(),
 		"junit" 				% 	"junit" 			% junitVersion withSources(),
 		"org.scalatest"			%%	"scalatest"			% scalaTestVersion withSources(),		
-		"com.typesafe" 			%% 	"scalalogging-slf4j" % "1.0.1"
+		"com.typesafe" 			%% 	"scalalogging-slf4j" % "1.0.1" withSources(),
+		"com.typesafe"			%	"config"			% "1.0.2" withSources()
 	)
 }
 
 resolvers ++=Seq(
-	"Spray repository" at "http://repo.spray.io"
+	"Spray repository" at "http://repo.spray.io",
+	// The Typesafe repository 
+	"Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/"
 )
+
+jarName in assembly := "amsSimulatorV0.2.5.jar"
+
+mainClass in assembly := Some("org.maikalal.ams.sim.feeds.BTRCreator")
