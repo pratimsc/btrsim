@@ -29,28 +29,32 @@ class BalancesTestSuite extends FunSuite {
     originatorReferenceNumberAEK = Some("I13032500000001"),
     beneficiaryReferenceNumberCR = Some("IW000204361"),
     monetaryAmount = new Money(8L, CurrencyUnit.GBP),
-    paymentDate = new DateTime(2013, 3, 25, 0, 0))
+    paymentDate = new DateTime(2013, 3, 25, 0, 0),
+    paymentChannel = Some(TransformationUtil.PaymentChannel.BFA_PROCESSED))
 
   val pi2 = PaymentInstruction(
     beneficiaryAccountNumber = new UKAccountNumber("201275", "63193926"),
     originatorReferenceNumberAEK = Some("I13032500000001"),
     beneficiaryReferenceNumberCR = Some("IW000204371"),
     monetaryAmount = new Money(3L, CurrencyUnit.GBP),
-    paymentDate = new DateTime(2013, 3, 25, 0, 0))
+    paymentDate = new DateTime(2013, 3, 25, 0, 0),
+    paymentChannel = Some(TransformationUtil.PaymentChannel.BFA_PROCESSED))
 
   val pi3 = PaymentInstruction(
     beneficiaryAccountNumber = new UKAccountNumber("201275", "23648621"),
     originatorReferenceNumberAEK = Some("I13032500000002"),
     beneficiaryReferenceNumberCR = Some("IC000204361"),
     monetaryAmount = new Money(45L, CurrencyUnit.GBP),
-    paymentDate = new DateTime(2013, 3, 25, 0, 0))
+    paymentDate = new DateTime(2013, 3, 25, 0, 0),
+    paymentChannel = Some(TransformationUtil.PaymentChannel.BFA_PROCESSED))
 
   val pi4 = PaymentInstruction(
     beneficiaryAccountNumber = new UKAccountNumber("201275", "23648621"),
     originatorReferenceNumberAEK = Some("I13032500000002"),
     beneficiaryReferenceNumberCR = Some("IC000204371"),
     monetaryAmount = new Money(17L, CurrencyUnit.GBP),
-    paymentDate = new DateTime(2013, 3, 25, 0, 0))
+    paymentDate = new DateTime(2013, 3, 25, 0, 0),
+    paymentChannel = Some(TransformationUtil.PaymentChannel.BFA_PROCESSED))
 
   //Test payment orders
   val po1 = new PaymentOrder(originatorAccountNumber = new UKAccountNumber("201275", "23648621"),
@@ -107,6 +111,6 @@ class BalancesTestSuite extends FunSuite {
     assert(accLedger.filterNot(e => e.account == rBenAc).length == 0)
     val dailyBalances = accLedger.map(al => al.balances.get(AccountBalance.BALANCE_TYPE_DAILY).get.balance)
     val dailyBalance = dailyBalances.tail.foldLeft(dailyBalances.head)((acc, m) => acc + m)
-    assert(dailyBalance == rBenBal)    
+    assert(dailyBalance == rBenBal)
   }
 }
