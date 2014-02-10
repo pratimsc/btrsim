@@ -41,4 +41,4 @@ resolvers ++=Seq(
 
 jarName in assembly := "amsSimulatorV0.2.5.jar"
 
-mainClass in assembly := Some("org.maikalal.ams.sim.feeds.BTRCreator")
+mainClass in assembly := Some("ams.sim.feeds.BTRCreator")
