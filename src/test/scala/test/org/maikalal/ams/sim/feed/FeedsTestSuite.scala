@@ -28,9 +28,8 @@ class FeedsTestSuite extends FunSuite {
       new TransformationUtil.MyDateTimeSerializer(TransformationUtil.DT_FORMAT_CCYYMMDD),
       new TransformationUtil.MyJodaCurrencyUnitSerializer)
 
-  test("Test1 - Read configuration file") {
-    val confFile = """test/conf/test01.conf"""
-    //val confFile = """C:\data\code\eclipse\20130412\AMSSimulator\src\main\resources\test\conf\test02.conf"""
+  test("Test1 - Read configuration file") {        
+    val confFile = """conf/test01.conf"""
     val conf = ConfigFactory.load(confFile)
 
     val DD_PREVIOUS_ACC_DATE_FEED_FOLDER = conf.getString("ams.btr.in.folder.previous")
@@ -103,7 +102,7 @@ class FeedsTestSuite extends FunSuite {
 
   test("Test6 - Check wether Account Ledger information is correctly extracted from Sterling Feed ") {
     implicit val directDataFeedCodec = Codec.UTF8
-    val file = new File("""C:\data\code\eclipse\20130412\AMSSimulator\src\test\resources\feeds\GBP_DC1_20131108""")
+    val file = new File(getClass().getResource("""/feeds/GBP_DC1_20131108""").getFile())
     val ledgerDate = TransformationUtil.getDateTime("20130325", "yyyyMMdd").get
     val accLdgr1 = new AccountLedger(account = new UKAccountNumber("206325", "83457540"),
       ledgerDate = ledgerDate,
