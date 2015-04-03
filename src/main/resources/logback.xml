@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+	<timestamp key="byTimeStamp" datePattern="yyyyMMdd'T'HHmmss"/>
+	<appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+		<target>System.out</target>
+		<encoder>
+			<pattern>
+				%date{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{1} - %msg%n
+			</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
+	<!-- use the previously created timestamp to create a uniquely named log file -->	
+		<file>btrSimulator-${byTimeStamp}.log</file>
+		<append>true</append>
+		<encoder>
+			<pattern>%date{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{10} [%file:%line] - %msg%n
+			</pattern>
+		</encoder>
+	</appender>
+
+	<root level="DEBUG">
+		<appender-ref ref="CONSOLE" />
+		<appender-ref ref="FILE" />
+	</root>
+</configuration>

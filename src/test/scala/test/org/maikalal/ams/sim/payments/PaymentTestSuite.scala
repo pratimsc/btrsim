@@ -11,11 +11,18 @@ import org.maikalal.ams.sim.payments.PaymentOrder
 import org.maikalal.ams.sim.payments.PaymentProcessor
 import org.maikalal.ams.sim.payments.UKAccountNumber
 import org.scalatest.FunSuite
-import org.scalatest.junit.JUnitRunner
 import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
+import org.scalatest.junit.JUnitRunner
+import org.maikalal.ams.sim.utils.TransformationUtil
+import net.liftweb.json.DefaultFormats
+import net.liftweb.json.Serialization._
 
 @RunWith(classOf[JUnitRunner])
 class PaymentCreatorTestSuite extends FunSuite {
+
+  implicit val formats = net.liftweb.json.DefaultFormats ++ List(new TransformationUtil.MyDateTimeSerializer("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"),
+    new TransformationUtil.MyJodaCurrencyUnitSerializer,
+    new TransformationUtil.MyBigDecimalSerializer)
 
   //Test payment instructions
   val pi1 = PaymentInstruction(
@@ -23,13 +30,15 @@ class PaymentCreatorTestSuite extends FunSuite {
     originatorReferenceNumberAEK = Some("Originator reference number"),
     beneficiaryReferenceNumberCR = Some("Beneficiary reference number"),
     monetaryAmount = new Money(9876543210L, CurrencyUnit.GBP),
-    paymentDate = new DateTime(2013, 11, 26, 0, 0))
+    paymentDate = new DateTime(2013, 11, 26, 0, 0),
+    paymentMode = Some(TransformationUtil.PaymentMode.CHAPS))
   val pi2 = PaymentInstruction(
     beneficiaryAccountNumber = new UKAccountNumber("112244", "44556688"),
     originatorReferenceNumberAEK = Some("Originator reference number"),
     beneficiaryReferenceNumberCR = Some("Beneficiary reference number"),
     monetaryAmount = new Money(9876543220L, CurrencyUnit.GBP),
-    paymentDate = new DateTime(2013, 11, 26, 0, 0))
+    paymentDate = new DateTime(2013, 11, 26, 0, 0),
+    paymentMode = Some(TransformationUtil.PaymentMode.CHAPS))
 
   //Test payment orders
   val po1 = new PaymentOrder(originatorAccountNumber = new UKAccountNumber("223344", "55667788"),
@@ -48,19 +57,18 @@ class PaymentCreatorTestSuite extends FunSuite {
       transactionCode = "85",
       tlaCode = "8",
       transactionReferenceNumber = "0000",
-      narrative1 = "",
-      narrative2 = pi1.beneficiaryReferenceNumberCR.get)
+      narrative = pi1.beneficiaryReferenceNumberCR.get)
     val dbTr = new AccountTransaction(accountNumber = po1.originatorAccountNumber,
       originatingAccountNumber = pi1.beneficiaryAccountNumber,
       transactionValue = (-pi1.monetaryAmount),
       transacionDate = pi1.paymentDate,
       transactionCode = "82",
-      tlaCode = "0",
+      tlaCode = "8",
       transactionReferenceNumber = "0000",
-      narrative1 = "EDI BGM " + pi1.beneficiaryReferenceNumberCR.get,
-      narrative2 = "")
+      narrative = pi1.beneficiaryReferenceNumberCR.get)
 
     val trs = PaymentProcessor.generateTransactionPairs(pi1, po1.originatorAccountNumber)
+
     assert(trs.isInstanceOf[List[AccountTransaction]])
     assert(trs.length == 2)
     assert(trs == List(dbTr, crTr) || trs == List(crTr, dbTr))
@@ -74,17 +82,16 @@ class PaymentCreatorTestSuite extends FunSuite {
       transactionCode = "85",
       tlaCode = "8",
       transactionReferenceNumber = "0000",
-      narrative1 = "",
-      narrative2 = pi1.beneficiaryReferenceNumberCR.get)
+      narrative = pi1.beneficiaryReferenceNumberCR.get)
     val dbTr = new AccountTransaction(accountNumber = po1.originatorAccountNumber,
       originatingAccountNumber = pi1.beneficiaryAccountNumber,
       transactionValue = (-pi1.monetaryAmount),
       transacionDate = pi1.paymentDate,
       transactionCode = "82",
-      tlaCode = "0",
+      tlaCode = "8",
       transactionReferenceNumber = "0000",
-      narrative1 = "EDI BGM " + pi1.beneficiaryReferenceNumberCR.get,
-      narrative2 = "")
+      narrative = pi1.beneficiaryReferenceNumberCR.get)
+
     val trs = PaymentProcessor.generateTransactionPairs(po1)
     assert(trs.isInstanceOf[List[AccountTransaction]])
     assert(trs.length == 2)
@@ -99,17 +106,15 @@ class PaymentCreatorTestSuite extends FunSuite {
       transactionCode = "85",
       tlaCode = "8",
       transactionReferenceNumber = "0000",
-      narrative1 = "",
-      narrative2 = pi1.beneficiaryReferenceNumberCR.get)
+      narrative = pi1.beneficiaryReferenceNumberCR.get)
     val dbTr = new AccountTransaction(accountNumber = po1.originatorAccountNumber,
       originatingAccountNumber = pi1.beneficiaryAccountNumber,
       transactionValue = (-pi1.monetaryAmount),
       transacionDate = pi1.paymentDate,
       transactionCode = "82",
-      tlaCode = "0",
+      tlaCode = "8",
       transactionReferenceNumber = "0000",
-      narrative1 = "EDI BGM " + pi1.beneficiaryReferenceNumberCR.get,
-      narrative2 = "")
+      narrative = pi1.beneficiaryReferenceNumberCR.get)
     val trs = PaymentProcessor.generateTransactionPairs(List(po1))
     assert(trs.isInstanceOf[List[AccountTransaction]])
     assert(trs.length == 2)
