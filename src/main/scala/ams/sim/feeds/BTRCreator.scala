@@ -20,12 +20,13 @@ import org.maikalal.ams.sim.payments.PaymentProcessor
 import org.maikalal.ams.sim.payments.extractor.PaymentFilesProcessor
 import org.maikalal.ams.sim.utils.TransformationUtil
 import com.typesafe.config.ConfigFactory
-import com.typesafe.scalalogging.slf4j.Logging
+//import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 import net.liftweb.json.DefaultFormats
 import net.liftweb.json.Serialization.writePretty
 import org.maikalal.ams.sim.payments.UKAccountNumber
 
-object BTRCreator extends Logging {
+object BTRCreator extends LazyLogging {
 
   implicit val formats = DefaultFormats ++
     List(new TransformationUtil.MyDateTimeSerializer(TransformationUtil.DT_FORMAT_CCYYMMDD),

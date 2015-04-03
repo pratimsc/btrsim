@@ -9,9 +9,11 @@ import net.liftweb.json.parse
 import org.maikalal.ams.sim.payments.PaymentOrder
 import scala.util.Success
 import scala.util.Failure
-import com.typesafe.scalalogging.slf4j.Logging
+//import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 
-object PaymentJsonProcessor extends Logging {
+
+object PaymentJsonProcessor extends LazyLogging {
 
   def extractIncomingPaymentTransactionsFromPaymentOrdersJSON(paymentOrdersJson: String)(implicit formats: Formats): Try[List[AccountTransaction]] = Try {
     val poL = (parse(paymentOrdersJson) \\ "paymentOrders").extract[List[PaymentOrder]]

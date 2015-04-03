@@ -17,7 +17,9 @@ import org.maikalal.ams.sim.payments.Money
 import org.maikalal.ams.sim.payments.UKAccountNumber
 import org.maikalal.ams.sim.utils.TransformationUtil
 
-import com.typesafe.scalalogging.slf4j.Logging
+//import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
+
 
 case class BTRFeed(val file: File, val feedType: BTRType)
 
@@ -32,7 +34,7 @@ object BTRCurrencyFeed extends BTRType {
   override def isCurrencyFeed = true
 }
 
-object BTRReader extends Logging {
+object BTRReader extends LazyLogging {
   def extractPreviousEODBalanceFromFile(btrFeed: BTRFeed)(implicit directDataFeedCodec: Codec): Try[List[AccountLedger]] = Try {
     val src = Source.fromFile(btrFeed.file)
     val lines = src.getLines.toList

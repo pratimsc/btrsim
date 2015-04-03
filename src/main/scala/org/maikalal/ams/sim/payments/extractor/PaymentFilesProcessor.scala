@@ -10,9 +10,11 @@ import scala.util.Success
 import org.maikalal.ams.sim.utils.TransformationUtil
 import scala.io.Source
 import net.liftweb.json._
-import com.typesafe.scalalogging.slf4j.Logging
+//import com.typesafe.scalalogging.slf4j.Logging
+import com.typesafe.scalalogging.LazyLogging
 
-object PaymentFilesProcessor extends Logging {
+
+object PaymentFilesProcessor extends LazyLogging {
   def extractPaymentOrders(filePath: String)(implicit paymentFileCodec: Codec): List[PaymentOrder] = {
     //Check whether its a file or a folder, accordingly execute appropiate function
     val paymentFiles = TransformationUtil.extractFilesFromFolder(new File(filePath))
