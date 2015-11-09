@@ -113,7 +113,7 @@ object BTRCreator extends LazyLogging {
     /*
      * Convert the sort code "20000" in the Account numbers to sort code "200018", in the list of Transactions
      * This should be converted for only those Accounts/Transactions for which an entry in the ledger exist. 
-     * This conversion is aided to support DirectData's usage of sort code 200018 instead of the valid sort code 200000.
+     * This conversion is aided to support usage of sort code 200018 instead of the valid sort code 200000.
      * This transformed list has to be used for Balance processing
      */
     val paymentTransactionsTransformed = paymentTransactions ++
