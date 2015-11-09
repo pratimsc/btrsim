@@ -89,7 +89,7 @@ object BTRReader extends LazyLogging {
    * Converts a Currency Balance block to Account Ledger
    * There will be 2 trailer records - One for Credit balance and other for Debit balance
    * Sum of these 2 balances provides the EOD balance for previous day. 
-   * The SOLD supplied Account Ledger balance is absent in the feeds. Hence, total balance 
+   * Some supplied Account Ledger balance could be absent in the feeds. Hence, total balance 
    * Information is absent in the data.
    */
   def convertCurrencyBalanceRecordToAccountLedger(acc: AccountNumber, data: List[String]): AccountLedger = {
